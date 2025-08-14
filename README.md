@@ -39,6 +39,7 @@ A powerful, Claude-optimized file system MCP (Model Context Protocol) server tha
 
 1. **Add MCP Server**: Add this to your Claude Desktop configuration:
 
+**Option 1: Use Public Server (Limited Access)**
 ```json
 {
   "mcpServers": {
@@ -47,16 +48,36 @@ A powerful, Claude-optimized file system MCP (Model Context Protocol) server tha
       "args": [
         "@modelcontextprotocol/server-fetch",
         "https://fast-filesystem-e2oo1zkp1-efforthyes-projects.vercel.app/api/server"
-      ],
-      "env": {
-        "ALLOWED_DIRECTORIES": "/home/username,/Users/username,/path/to/your/projects"
-      }
+      ]
     }
   }
 }
 ```
+⚠️ **Limitation**: Only `/tmp` and `/home` directories are accessible with the public server.
 
-**💡 Important**: Replace the paths in `ALLOWED_DIRECTORIES` with your actual directories you want Claude to access (comma-separated).
+**Option 2: Run Local Server (Recommended)**
+```bash
+git clone https://github.com/efforthye/fast-filesystem-mcp.git
+cd fast-filesystem-mcp
+pnpm install
+export ALLOWED_DIRECTORIES="/Users/username,/your/project/path"  # Set your paths
+vercel dev
+```
+
+Then use this configuration:
+```json
+{
+  "mcpServers": {
+    "fast-filesystem": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-fetch",
+        "http://localhost:3000/api/server"
+      ]
+    }
+  }
+}
+```
 
 2. **Restart Claude Desktop** and start using file system commands!
 
