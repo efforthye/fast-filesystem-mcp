@@ -1,6 +1,6 @@
 # Fast Filesystem MCP
 
-A powerful Model Context Protocol (MCP) server providing advanced filesystem operations for Claude and other AI assistants. Migrated from the original McpSynapse project with 10 specialized tools optimized for Claude's performance requirements.
+A powerful Model Context Protocol (MCP) server providing advanced filesystem operations for Claude and other AI assistants.
 
 ## Quick Setup
 
