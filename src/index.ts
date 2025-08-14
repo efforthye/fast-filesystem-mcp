@@ -10,6 +10,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import crypto from 'crypto';
 
 const execAsync = promisify(exec);
 
@@ -100,11 +101,55 @@ function truncateContent(content: string, maxSize: number = CLAUDE_MAX_RESPONSE_
   };
 }
 
+// 파일 해시 계산
+function calculateFileHash(filePath: string, algorithm: string = 'sha256'): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash(algorithm);
+    const stream = require('fs').createReadStream(filePath);
+    
+    stream.on('data', (data: Buffer) => hash.update(data));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', reject);
+  });
+}
+
+// diff 생성
+function generateDiff(original: string, modified: string, filename: string = "file"): string {
+  const originalLines = original.split('\n');
+  const modifiedLines = modified.split('\n');
+  
+  const diff = [`--- a/${filename}`, `+++ b/${filename}`];
+  let originalIndex = 0;
+  let modifiedIndex = 0;
+  
+  while (originalIndex < originalLines.length || modifiedIndex < modifiedLines.length) {
+    if (originalIndex < originalLines.length && modifiedIndex < modifiedLines.length) {
+      if (originalLines[originalIndex] === modifiedLines[modifiedIndex]) {
+        originalIndex++;
+        modifiedIndex++;
+        continue;
+      }
+    }
+    
+    // 간단한 diff 구현
+    if (originalIndex < originalLines.length) {
+      diff.push(`-${originalLines[originalIndex]}`);
+      originalIndex++;
+    }
+    if (modifiedIndex < modifiedLines.length) {
+      diff.push(`+${modifiedLines[modifiedIndex]}`);
+      modifiedIndex++;
+    }
+  }
+  
+  return diff.join('\n');
+}
+
 // MCP 서버 생성
 const server = new Server(
   {
     name: 'fast-filesystem',
-    version: '2.1.7',
+    version: '2.2.0',
   },
   {
     capabilities: {
@@ -207,7 +252,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             pattern: { type: 'string', description: '검색 패턴' },
             content_search: { type: 'boolean', description: '파일 내용 검색', default: false },
             case_sensitive: { type: 'boolean', description: '대소문자 구분', default: false },
-            max_results: { type: 'number', description: '최대 결과 수', default: 100 }
+            max_results: { type: 'number', description: '최대 결과 수', default: 100 },
+            file_extensions: { type: 'string', description: '파일 확장자 필터 (쉼표로 구분)' }
           },
           required: ['path', 'pattern']
         }
@@ -248,617 +294,127 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ['path']
         }
+      },
+      // 🆕 새로 추가된 도구들
+      {
+        name: 'fast_move_file',
+        description: '파일이나 디렉토리를 이동하거나 이름을 변경합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            source: { type: 'string', description: '원본 경로' },
+            destination: { type: 'string', description: '대상 경로' }
+          },
+          required: ['source', 'destination']
+        }
+      },
+      {
+        name: 'fast_copy_file',
+        description: '파일이나 디렉토리를 복사합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            source: { type: 'string', description: '원본 경로' },
+            destination: { type: 'string', description: '대상 경로' },
+            overwrite: { type: 'boolean', description: '덮어쓰기 허용', default: false }
+          },
+          required: ['source', 'destination']
+        }
+      },
+      {
+        name: 'fast_delete_file',
+        description: '파일이나 디렉토리를 삭제합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: '삭제할 경로' },
+            recursive: { type: 'boolean', description: '재귀적 삭제 (디렉토리용)', default: false }
+          },
+          required: ['path']
+        }
+      },
+      {
+        name: 'fast_edit_file',
+        description: '파일의 특정 부분을 수정합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: '편집할 파일 경로' },
+            edits: { 
+              type: 'array', 
+              description: '수정 사항 배열',
+              items: {
+                type: 'object',
+                properties: {
+                  old_text: { type: 'string', description: '찾을 텍스트' },
+                  new_text: { type: 'string', description: '바꿀 텍스트' }
+                },
+                required: ['old_text', 'new_text']
+              }
+            },
+            encoding: { type: 'string', description: '텍스트 인코딩', default: 'utf-8' },
+            create_backup: { type: 'boolean', description: '백업 파일 생성', default: true },
+            dry_run: { type: 'boolean', description: '실제 수정 없이 미리보기', default: false }
+          },
+          required: ['path', 'edits']
+        }
+      },
+      {
+        name: 'fast_compare_files',
+        description: '두 파일을 비교합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            file1: { type: 'string', description: '첫 번째 파일 경로' },
+            file2: { type: 'string', description: '두 번째 파일 경로' },
+            method: { type: 'string', description: '비교 방법', enum: ['hash', 'size', 'content'], default: 'hash' }
+          },
+          required: ['file1', 'file2']
+        }
+      },
+      {
+        name: 'fast_read_file_streaming',
+        description: '향상된 스트리밍 파일 읽기 (head/tail/range 지원)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: '읽을 파일 경로' },
+            mode: { type: 'string', description: '읽기 모드', enum: ['full', 'head', 'tail', 'range'], default: 'full' },
+            head_lines: { type: 'number', description: '처음 N줄 읽기' },
+            tail_lines: { type: 'number', description: '마지막 N줄 읽기' },
+            line_range: { type: 'string', description: '줄 범위 (예: "10-20", "50-")' },
+            encoding: { type: 'string', description: '텍스트 인코딩', default: 'utf-8' }
+          },
+          required: ['path']
+        }
+      },
+      {
+        name: 'fast_calculate_directory_size',
+        description: '디렉토리의 전체 크기를 계산합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: '계산할 디렉토리 경로' },
+            include_subdirs: { type: 'boolean', description: '하위 디렉토리 포함', default: true }
+          },
+          required: ['path']
+        }
+      },
+      {
+        name: 'fast_watch_directory',
+        description: '디렉토리 변경사항을 모니터링합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: '모니터링할 디렉토리 경로' },
+            duration: { type: 'number', description: '모니터링 시간 (초)', default: 10 }
+          },
+          required: ['path']
+        }
       }
     ],
   };
 });
-
-// 툴 호출 핸들러
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-  
-  try {
-    let result;
-    
-    switch (name) {
-      case 'fast_list_allowed_directories':
-        result = await handleListAllowedDirectories();
-        break;
-      case 'fast_read_file':
-        result = await handleReadFile(args);
-        break;
-      case 'fast_write_file':
-        result = await handleWriteFile(args);
-        break;
-      case 'fast_list_directory':
-        result = await handleListDirectory(args);
-        break;
-      case 'fast_get_file_info':
-        result = await handleGetFileInfo(args);
-        break;
-      case 'fast_create_directory':
-        result = await handleCreateDirectory(args);
-        break;
-      case 'fast_search_files':
-        result = await handleSearchFiles(args);
-        break;
-      case 'fast_get_directory_tree':
-        result = await handleGetDirectoryTree(args);
-        break;
-      case 'fast_get_disk_usage':
-        result = await handleGetDiskUsage(args);
-        break;
-      case 'fast_find_large_files':
-        result = await handleFindLargeFiles(args);
-        break;
-      default:
-        throw new Error(`Tool not implemented: ${name}`);
-    }
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  } catch (error) {
-    throw new Error(error instanceof Error ? error.message : 'Unknown error');
-  }
-});
-
-// 툴 핸들러 함수들
-async function handleListAllowedDirectories() {
-  return {
-    allowed_directories: DEFAULT_ALLOWED_DIRECTORIES,
-    current_working_directory: process.cwd(),
-    exclude_patterns: DEFAULT_EXCLUDE_PATTERNS,
-    claude_limits: {
-      max_response_size_mb: CLAUDE_MAX_RESPONSE_SIZE / (1024**2),
-      max_chunk_size_mb: CLAUDE_MAX_CHUNK_SIZE / (1024**2),
-      max_lines_per_read: CLAUDE_MAX_LINES,
-      max_dir_items: CLAUDE_MAX_DIR_ITEMS
-    },
-    server_info: {
-      name: 'fast-filesystem',
-      version: '2.1.7',
-      timestamp: new Date().toISOString()
-    }
-  };
-}
-
-async function handleReadFile(args: any) {
-  const { path: filePath, start_offset = 0, max_size, line_start, line_count, encoding = 'utf-8' } = args;
-  
-  const safePath_resolved = safePath(filePath);
-  const stats = await fs.stat(safePath_resolved);
-  
-  if (!stats.isFile()) {
-    throw new Error('Path is not a file');
-  }
-  
-  const maxReadSize = max_size ? Math.min(max_size, CLAUDE_MAX_CHUNK_SIZE) : CLAUDE_MAX_CHUNK_SIZE;
-  
-  if (line_start !== undefined) {
-    const linesToRead = line_count ? Math.min(line_count, CLAUDE_MAX_LINES) : CLAUDE_MAX_LINES;
-    const fileContent = await fs.readFile(safePath_resolved, encoding as BufferEncoding);
-    const lines = fileContent.split('\n');
-    const selectedLines = lines.slice(line_start, line_start + linesToRead);
-    
-    return {
-      content: selectedLines.join('\n'),
-      mode: 'lines',
-      start_line: line_start,
-      lines_read: selectedLines.length,
-      total_lines: lines.length,
-      file_size: stats.size,
-      file_size_readable: formatSize(stats.size),
-      encoding: encoding,
-      path: safePath_resolved
-    };
-  }
-  
-  const fileHandle = await fs.open(safePath_resolved, 'r');
-  const buffer = Buffer.alloc(maxReadSize);
-  const { bytesRead } = await fileHandle.read(buffer, 0, maxReadSize, start_offset);
-  await fileHandle.close();
-  
-  const content = buffer.subarray(0, bytesRead).toString(encoding as BufferEncoding);
-  const result = truncateContent(content);
-  
-  return {
-    content: result.content,
-    mode: 'bytes',
-    start_offset: start_offset,
-    bytes_read: bytesRead,
-    file_size: stats.size,
-    file_size_readable: formatSize(stats.size),
-    encoding: encoding,
-    truncated: result.truncated,
-    has_more: start_offset + bytesRead < stats.size,
-    path: safePath_resolved
-  };
-}
-
-async function handleWriteFile(args: any) {
-  const { path: filePath, content, encoding = 'utf-8', create_dirs = true, append = false } = args;
-  
-  let targetPath: string;
-  if (path.isAbsolute(filePath)) {
-    targetPath = filePath;
-  } else {
-    targetPath = path.join(process.cwd(), filePath);
-  }
-  
-  if (!isPathAllowed(targetPath)) {
-    throw new Error(`Access denied to path: ${targetPath}`);
-  }
-  
-  const resolvedPath = path.resolve(targetPath);
-  
-  if (create_dirs) {
-    const dir = path.dirname(resolvedPath);
-    await fs.mkdir(dir, { recursive: true });
-  }
-  
-  if (append) {
-    await fs.appendFile(resolvedPath, content, encoding as BufferEncoding);
-  } else {
-    await fs.writeFile(resolvedPath, content, encoding as BufferEncoding);
-  }
-  
-  const stats = await fs.stat(resolvedPath);
-  
-  return {
-    message: `File ${append ? 'appended' : 'written'} successfully`,
-    path: resolvedPath,
-    size: stats.size,
-    size_readable: formatSize(stats.size),
-    encoding: encoding,
-    mode: append ? 'append' : 'write',
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function handleListDirectory(args: any) {
-  const { path: dirPath, page = 1, page_size, pattern, show_hidden = false, sort_by = 'name', reverse = false } = args;
-  
-  const safePath_resolved = safePath(dirPath);
-  const stats = await fs.stat(safePath_resolved);
-  
-  if (!stats.isDirectory()) {
-    throw new Error('Path is not a directory');
-  }
-  
-  const pageSize = page_size ? Math.min(page_size, CLAUDE_MAX_DIR_ITEMS) : 50;
-  const entries = await fs.readdir(safePath_resolved, { withFileTypes: true });
-  
-  let filteredEntries = entries.filter(entry => {
-    if (!show_hidden && entry.name.startsWith('.')) return false;
-    if (shouldExcludePath(path.join(safePath_resolved, entry.name))) return false;
-    if (pattern) {
-      return entry.name.toLowerCase().includes(pattern.toLowerCase());
-    }
-    return true;
-  });
-  
-  // 정렬
-  filteredEntries.sort((a, b) => {
-    let comparison = 0;
-    
-    switch (sort_by) {
-      case 'name':
-        comparison = a.name.localeCompare(b.name);
-        break;
-      case 'type':
-        const aType = a.isDirectory() ? 'directory' : 'file';
-        const bType = b.isDirectory() ? 'directory' : 'file';
-        comparison = aType.localeCompare(bType);
-        break;
-      default:
-        comparison = a.name.localeCompare(b.name);
-    }
-    
-    return reverse ? -comparison : comparison;
-  });
-  
-  const startIdx = (page - 1) * pageSize;
-  const endIdx = startIdx + pageSize;
-  const pageEntries = filteredEntries.slice(startIdx, endIdx);
-  
-  const items = await Promise.all(pageEntries.map(async (entry) => {
-    try {
-      const fullPath = path.join(safePath_resolved, entry.name);
-      const itemStats = await fs.stat(fullPath);
-      
-      return {
-        name: entry.name,
-        type: entry.isDirectory() ? 'directory' : 'file',
-        size: entry.isFile() ? itemStats.size : null,
-        size_readable: entry.isFile() ? formatSize(itemStats.size) : null,
-        modified: itemStats.mtime.toISOString(),
-        created: itemStats.birthtime.toISOString(),
-        permissions: itemStats.mode,
-        path: fullPath
-      };
-    } catch {
-      return {
-        name: entry.name,
-        type: entry.isDirectory() ? 'directory' : 'file',
-        size: null,
-        size_readable: null,
-        modified: null,
-        created: null,
-        permissions: null,
-        path: path.join(safePath_resolved, entry.name)
-      };
-    }
-  }));
-  
-  return {
-    path: safePath_resolved,
-    items: items,
-    page: page,
-    page_size: pageSize,
-    total_count: filteredEntries.length,
-    total_pages: Math.ceil(filteredEntries.length / pageSize),
-    has_more: endIdx < filteredEntries.length,
-    sort_by: sort_by,
-    reverse: reverse,
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function handleGetFileInfo(args: any) {
-  const { path: targetPath } = args;
-  
-  const safePath_resolved = safePath(targetPath);
-  const stats = await fs.stat(safePath_resolved);
-  
-  const info = {
-    path: safePath_resolved,
-    name: path.basename(safePath_resolved),
-    type: stats.isDirectory() ? 'directory' : 'file',
-    size: stats.size,
-    size_readable: formatSize(stats.size),
-    created: stats.birthtime.toISOString(),
-    modified: stats.mtime.toISOString(),
-    accessed: stats.atime.toISOString(),
-    permissions: stats.mode,
-    is_readable: true,
-    is_writable: true
-  };
-  
-  if (stats.isFile()) {
-    (info as any).extension = path.extname(safePath_resolved);
-    (info as any).mime_type = getMimeType(safePath_resolved);
-    
-    if (stats.size > CLAUDE_MAX_CHUNK_SIZE) {
-      (info as any).claude_guide = {
-        message: 'File is large, consider using chunked reading',
-        recommended_chunk_size: CLAUDE_MAX_CHUNK_SIZE,
-        total_chunks: Math.ceil(stats.size / CLAUDE_MAX_CHUNK_SIZE)
-      };
-    }
-  } else if (stats.isDirectory()) {
-    try {
-      const entries = await fs.readdir(safePath_resolved);
-      (info as any).item_count = entries.length;
-      
-      if (entries.length > CLAUDE_MAX_DIR_ITEMS) {
-        (info as any).claude_guide = {
-          message: 'Directory has many items, consider using pagination',
-          recommended_page_size: CLAUDE_MAX_DIR_ITEMS,
-          total_pages: Math.ceil(entries.length / CLAUDE_MAX_DIR_ITEMS)
-        };
-      }
-    } catch {
-      (info as any).item_count = 'Unable to count';
-    }
-  }
-  
-  return info;
-}
-
-async function handleCreateDirectory(args: any) {
-  const { path: dirPath, recursive = true } = args;
-  
-  const safePath_resolved = safePath(dirPath);
-  await fs.mkdir(safePath_resolved, { recursive });
-  
-  return {
-    message: 'Directory created successfully',
-    path: safePath_resolved,
-    recursive: recursive,
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function handleSearchFiles(args: any) {
-  const { 
-    path: searchPath, 
-    pattern, 
-    content_search = false, 
-    case_sensitive = false, 
-    max_results = 100
-  } = args;
-  
-  const safePath_resolved = safePath(searchPath);
-  const maxResults = Math.min(max_results, 200);
-  const results: any[] = [];
-  
-  const searchPattern = case_sensitive ? pattern : pattern.toLowerCase();
-  
-  async function searchDirectory(dirPath: string) {
-    if (results.length >= maxResults) return;
-    
-    try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true });
-      
-      for (const entry of entries) {
-        if (results.length >= maxResults) break;
-        
-        const fullPath = path.join(dirPath, entry.name);
-        
-        if (shouldExcludePath(fullPath)) continue;
-        
-        if (entry.isFile()) {
-          const searchName = case_sensitive ? entry.name : entry.name.toLowerCase();
-          let matched = false;
-          let matchType = '';
-          
-          if (searchName.includes(searchPattern)) {
-            matched = true;
-            matchType = 'filename';
-          }
-          
-          if (!matched && content_search) {
-            try {
-              const stats = await fs.stat(fullPath);
-              if (stats.size < 10 * 1024 * 1024) { // 10MB 제한
-                const content = await fs.readFile(fullPath, 'utf-8');
-                const searchContent = case_sensitive ? content : content.toLowerCase();
-                if (searchContent.includes(searchPattern)) {
-                  matched = true;
-                  matchType = 'content';
-                }
-              }
-            } catch {
-              // 바이너리 파일 등 읽기 실패 무시
-            }
-          }
-          
-          if (matched) {
-            const stats = await fs.stat(fullPath);
-            results.push({
-              path: fullPath,
-              name: entry.name,
-              match_type: matchType,
-              size: stats.size,
-              size_readable: formatSize(stats.size),
-              modified: stats.mtime.toISOString(),
-              extension: path.extname(fullPath)
-            });
-          }
-        } else if (entry.isDirectory()) {
-          await searchDirectory(fullPath);
-        }
-      }
-    } catch {
-      // 권한 없는 디렉토리 등 무시
-    }
-  }
-  
-  await searchDirectory(safePath_resolved);
-  
-  return {
-    results: results,
-    total_found: results.length,
-    search_pattern: pattern,
-    search_path: safePath_resolved,
-    content_search: content_search,
-    case_sensitive: case_sensitive,
-    max_results_reached: results.length >= maxResults,
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function handleGetDirectoryTree(args: any) {
-  const { path: rootPath, max_depth = 3, show_hidden = false, include_files = true } = args;
-  
-  const safePath_resolved = safePath(rootPath);
-  
-  async function buildTree(currentPath: string, currentDepth: number): Promise<any> {
-    if (currentDepth > max_depth) return null;
-    
-    try {
-      const stats = await fs.stat(currentPath);
-      const name = path.basename(currentPath);
-      
-      if (!show_hidden && name.startsWith('.')) return null;
-      if (shouldExcludePath(currentPath)) return null;
-      
-      const node: any = {
-        name: name,
-        path: currentPath,
-        type: stats.isDirectory() ? 'directory' : 'file',
-        size: stats.size,
-        size_readable: formatSize(stats.size),
-        modified: stats.mtime.toISOString()
-      };
-      
-      if (stats.isDirectory()) {
-        node.children = [];
-        
-        try {
-          const entries = await fs.readdir(currentPath, { withFileTypes: true });
-          
-          for (const entry of entries) {
-            const childPath = path.join(currentPath, entry.name);
-            
-            if (entry.isDirectory()) {
-              const childNode = await buildTree(childPath, currentDepth + 1);
-              if (childNode) node.children.push(childNode);
-            } else if (include_files) {
-              const childNode = await buildTree(childPath, currentDepth + 1);
-              if (childNode) node.children.push(childNode);
-            }
-          }
-        } catch {
-          // 권한 없는 디렉토리
-          node.error = 'Access denied';
-        }
-      }
-      
-      return node;
-    } catch {
-      return null;
-    }
-  }
-  
-  const tree = await buildTree(safePath_resolved, 0);
-  
-  return {
-    tree: tree,
-    root_path: safePath_resolved,
-    max_depth: max_depth,
-    show_hidden: show_hidden,
-    include_files: include_files,
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function handleGetDiskUsage(args: any) {
-  const { path: targetPath = '/' } = args;
-  
-  try {
-    const { stdout } = await execAsync(`df -h "${targetPath}"`);
-    const lines = stdout.split('\n').filter(line => line.trim());
-    
-    if (lines.length > 1) {
-      const data = lines[1].split(/\s+/);
-      return {
-        filesystem: data[0],
-        total: data[1],
-        used: data[2],
-        available: data[3],
-        use_percentage: data[4],
-        mounted_on: data[5],
-        path: targetPath,
-        timestamp: new Date().toISOString()
-      };
-    }
-  } catch {
-    // Fallback for systems without df command
-  }
-  
-  return {
-    error: 'Unable to get disk usage information',
-    path: targetPath,
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function handleFindLargeFiles(args: any) {
-  const { path: searchPath, min_size = '100MB', max_results = 50 } = args;
-  
-  const safePath_resolved = safePath(searchPath);
-  const maxResults = Math.min(max_results, 100);
-  
-  // 크기 파싱 (예: 100MB -> bytes)
-  const parseSize = (sizeStr: string): number => {
-    const match = sizeStr.match(/^(\d+(\.\d+)?)\s*(B|KB|MB|GB|TB)?$/i);
-    if (!match) return 100 * 1024 * 1024; // 기본값 100MB
-    
-    const value = parseFloat(match[1]);
-    const unit = (match[3] || 'B').toUpperCase();
-    
-    const units: {[key: string]: number} = {
-      'B': 1,
-      'KB': 1024,
-      'MB': 1024 * 1024,
-      'GB': 1024 * 1024 * 1024,
-      'TB': 1024 * 1024 * 1024 * 1024
-    };
-    
-    return value * (units[unit] || 1);
-  };
-  
-  const minSizeBytes = parseSize(min_size);
-  const results: any[] = [];
-  
-  async function findLargeFilesRecursive(dirPath: string) {
-    if (results.length >= maxResults) return;
-    
-    try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true });
-      
-      for (const entry of entries) {
-        if (results.length >= maxResults) break;
-        
-        const fullPath = path.join(dirPath, entry.name);
-        
-        if (shouldExcludePath(fullPath)) continue;
-        
-        if (entry.isFile()) {
-          try {
-            const stats = await fs.stat(fullPath);
-            if (stats.size >= minSizeBytes) {
-              results.push({
-                path: fullPath,
-                name: entry.name,
-                size: stats.size,
-                size_readable: formatSize(stats.size),
-                modified: stats.mtime.toISOString(),
-                extension: path.extname(fullPath)
-              });
-            }
-          } catch {
-            // 파일 접근 실패 무시
-          }
-        } else if (entry.isDirectory()) {
-          await findLargeFilesRecursive(fullPath);
-        }
-      }
-    } catch {
-      // 권한 없는 디렉토리 무시
-    }
-  }
-  
-  await findLargeFilesRecursive(safePath_resolved);
-  
-  // 크기별로 정렬 (큰 것부터)
-  results.sort((a, b) => b.size - a.size);
-  
-  return {
-    results: results,
-    total_found: results.length,
-    search_path: safePath_resolved,
-    min_size: min_size,
-    min_size_bytes: minSizeBytes,
-    max_results_reached: results.length >= maxResults,
-    timestamp: new Date().toISOString()
-  };
-}
-
-function getMimeType(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-  const mimeTypes: {[key: string]: string} = {
-    '.txt': 'text/plain',
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.pdf': 'application/pdf',
-    '.zip': 'application/zip',
-    '.md': 'text/markdown'
-  };
-  
-  return mimeTypes[ext] || 'application/octet-stream';
-}
 
 // 서버 시작
 async function main() {
