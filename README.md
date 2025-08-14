@@ -1,35 +1,26 @@
 # Fast Filesystem MCP Server
 
-로컬에서 실행되는 고성능 파일시스템 MCP 서버로, Claude Desktop과 함께 사용할 수 있는 고급 파일 작업 기능을 제공합니다.
+A high-performance filesystem MCP server that provides advanced file operations for Claude Desktop with Claude-optimized chunking, pagination, and comprehensive directory operations.
 
-## 기능
+## Features
 
-- 파일 읽기/쓰기 (청킹 지원)
-- 디렉토리 탐색 및 페이징
-- 파일/디렉토리 검색 (이름 및 내용)
-- 디렉토리 트리 구조 표시
-- 대용량 파일 검색
-- 디스크 사용량 조회
-- Claude 최적화된 응답 크기 제한
+- File reading/writing with chunking support
+- Directory browsing with pagination
+- File/directory search (name and content)
+- Directory tree structure display
+- Large file detection
+- Disk usage monitoring
+- Claude-optimized response size limits
 
-## 설치
+## Installation
 
 ```bash
 npm install -g fast-filesystem-mcp
 ```
 
-또는 로컬에서 빌드:
+## Claude Desktop Configuration
 
-```bash
-git clone https://github.com/efforthye/fast-filesystem-mcp.git
-cd fast-filesystem-mcp
-npm install
-npm run build
-```
-
-## Claude Desktop 설정
-
-Claude Desktop의 설정 파일에 다음을 추가하세요:
+Add the following to your Claude Desktop configuration file:
 
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -44,52 +35,56 @@ Claude Desktop의 설정 파일에 다음을 추가하세요:
 }
 ```
 
-로컬 빌드를 사용하는 경우:
+**Important**: Restart Claude Desktop after adding the configuration.
 
-```json
-{
-  "mcpServers": {
-    "fast-filesystem": {
-      "command": "node",
-      "args": ["/path/to/fast-filesystem-mcp/index.js"]
-    }
-  }
-}
-```
+## Available Tools
 
-## 사용 가능한 도구
+- `fast_list_allowed_directories` - List accessible directories
+- `fast_read_file` - Read files with chunking support
+- `fast_write_file` - Write/modify files
+- `fast_list_directory` - List directory contents with pagination
+- `fast_get_file_info` - Get detailed file/directory information
+- `fast_create_directory` - Create directories
+- `fast_search_files` - Search files by name or content
+- `fast_get_directory_tree` - Generate directory tree structures
+- `fast_get_disk_usage` - Show disk space information
+- `fast_find_large_files` - Find files above size thresholds
 
-- `fast_list_allowed_directories` - 허용된 디렉토리 목록 조회
-- `fast_read_file` - 파일 읽기 (청킹 지원)
-- `fast_write_file` - 파일 쓰기/수정
-- `fast_list_directory` - 디렉토리 목록 조회 (페이징)
-- `fast_get_file_info` - 파일/디렉토리 정보 조회
-- `fast_create_directory` - 디렉토리 생성
-- `fast_search_files` - 파일 검색 (이름/내용)
-- `fast_get_directory_tree` - 디렉토리 트리 구조
-- `fast_get_disk_usage` - 디스크 사용량 조회
-- `fast_find_large_files` - 대용량 파일 검색
+## Security
 
-## 보안
-
-기본적으로 다음 디렉토리에만 접근 가능합니다:
-- 홈 디렉토리 (`$HOME`)
+By default, only the following directories are accessible:
+- Home directory (`$HOME`)
 - `/tmp`
 - `/Users` (macOS)
 - `/home` (Linux)
 
-제외되는 디렉토리/파일:
-- `node_modules`, `.git`, `.venv` 등
-- 시스템 캐시 및 빌드 디렉토리
+Excluded directories/files:
+- `node_modules`, `.git`, `.venv`, etc.
+- System cache and build directories
 
-## 개발
+## Usage Examples
 
-```bash
-npm run dev    # 개발 모드
-npm run build  # 빌드
-npm run start  # 실행
+```
+"Show me the allowed directories"
+"Read the package.json file"
+"List files in my Documents folder"
+"Search for TypeScript files containing 'interface'"
+"Show me the project folder structure"
+"Find files larger than 100MB"
+"Create a new directory called 'projects'"
+"What's the disk usage of the current directory?"
 ```
 
-## 라이선스
+## Development
+
+```bash
+git clone https://github.com/efforthye/fast-filesystem-mcp.git
+cd fast-filesystem-mcp
+npm install
+npm run build
+npm run start
+```
+
+## License
 
 MIT
