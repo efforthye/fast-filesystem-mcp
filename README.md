@@ -16,7 +16,7 @@ GitHub Repository: https://github.com/efforthye/fast-filesystem-mcp
 ```json
 {
   "mcpServers": {
-    "fast-filesystem-mcp": {
+    "fast-filesystem": {
       "command": "npx",
       "args": [
         "@modelcontextprotocol/server-fetch",
@@ -34,7 +34,7 @@ Access: Home directory, /tmp, /Users, /home, current working directory
 ```json
 {
   "mcpServers": {
-    "fast-filesystem-mcp": {
+    "fast-filesystem": {
       "command": "npx",
       "args": [
         "@modelcontextprotocol/server-fetch",

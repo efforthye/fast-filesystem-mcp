@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@vercel/mcp-adapter':
+        specifier: ^1.0.0
+        version: 1.0.0(@modelcontextprotocol/sdk@1.10.2)(next@15.3.2)
       mcp-handler:
         specifier: ^1.0.1
         version: 1.0.1(@modelcontextprotocol/sdk@1.10.2)(next@15.3.2)
@@ -226,6 +229,16 @@ packages:
 
   '@types/node@22.13.10':
     resolution: {integrity: sha512-I6LPUvlRH+O6VRUqYOcMudhaIdUVWfsjnZavnsraHvpBwaEyMN29ry+0UVJhImYL16xsscu0aske3yA+uPOWfw==}
+
+  '@vercel/mcp-adapter@1.0.0':
+    resolution: {integrity: sha512-o/QA4LhYCJvuL7/i8CfKPpOm29u25/L4m1LWH44EQZ8cfYJlc4B7Bu+YzDHl23m8A3hDxCJQmlgZEGmsPAQ0vQ==}
+    hasBin: true
+    peerDependencies:
+      '@modelcontextprotocol/sdk': ^1.12.0
+      next: '>=13.0.0'
+    peerDependenciesMeta:
+      next:
+        optional: true
 
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
@@ -886,6 +899,13 @@ snapshots:
   '@types/node@22.13.10':
     dependencies:
       undici-types: 6.20.0
+
+  '@vercel/mcp-adapter@1.0.0(@modelcontextprotocol/sdk@1.10.2)(next@15.3.2)':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.10.2
+      mcp-handler: 1.0.1(@modelcontextprotocol/sdk@1.10.2)(next@15.3.2)
+    optionalDependencies:
+      next: 15.3.2
 
   accepts@2.0.0:
     dependencies:
