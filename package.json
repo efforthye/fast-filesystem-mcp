@@ -1,18 +1,20 @@
 {
   "name": "fast-filesystem-mcp",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "description": "Fast Filesystem MCP Server - Advanced file operations for Claude Desktop with Claude-optimized chunking, pagination, and comprehensive directory operations",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "type": "module",
   "bin": {
-    "fast-filesystem-mcp": "./index.js"
+    "fast-filesystem-mcp": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
-    "start": "node index.js",
-    "dev": "tsx index.ts",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "clean": "rm -rf dist"
   },
   "keywords": ["mcp", "filesystem", "claude", "ai", "typescript", "desktop"],
   "author": {
@@ -42,7 +44,8 @@
     "node": ">=18.0.0"
   },
   "files": [
-    "index.js",
-    "index.d.ts"
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
   ]
 }
