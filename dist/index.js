@@ -80,7 +80,7 @@ function truncateContent(content, maxSize = CLAUDE_MAX_RESPONSE_SIZE) {
 // MCP 서버 생성
 const server = new Server({
     name: 'fast-filesystem',
-    version: '2.1.0',
+    version: '2.1.7',
 }, {
     capabilities: {
         tools: {},
@@ -289,7 +289,7 @@ async function handleListAllowedDirectories() {
         },
         server_info: {
             name: 'fast-filesystem',
-            version: '2.1.0',
+            version: '2.1.7',
             timestamp: new Date().toISOString()
         }
     };
@@ -773,3 +773,4 @@ main().catch((error) => {
     console.error('Server failed to start:', error);
     process.exit(1);
 });
+//# sourceMappingURL=index.js.map
