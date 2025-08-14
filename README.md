@@ -1,11 +1,11 @@
 # Fast Filesystem MCP
 
-A powerful Model Context Protocol (MCP) server providing advanced filesystem operations for Claude and other AI assistants. Migrated from the original McpSynapse project with 20 specialized tools optimized for Claude's performance requirements.
+A powerful Model Context Protocol (MCP) server providing advanced filesystem operations for Claude and other AI assistants. Migrated from the original McpSynapse project with 10 specialized tools optimized for Claude's performance requirements.
 
 ## Live Demo
 - **Production Server**: https://fast-filesystem-mcp.vercel.app/api/server
 - **GitHub Repository**: https://github.com/efforthye/fast-filesystem-mcp
-- **Status**: ✅ Online | Version 2.0.0 | 10 Core Tools Available
+- **Status**: Online | Version 2.1.0 | 10 Core Tools Available
 
 ## Quick Setup
 
@@ -33,15 +33,15 @@ After adding the configuration, restart Claude Desktop and you're ready to go!
 
 ## Available Tools
 
-### 📁 Core File Operations
+### Core File Operations
 
-#### `list_allowed_directories`
+#### `fast_list_allowed_directories`
 Shows accessible directories and server information
 ```
 허용된 디렉토리를 보여줘
 ```
 
-#### `read_file`
+#### `fast_read_file`
 Reads files with advanced chunking support
 - **Parameters**: `path`, `start_offset`, `max_size`, `line_start`, `line_count`, `encoding`
 - **Features**: Smart chunking for large files, line-based reading, encoding support
@@ -50,7 +50,7 @@ README.md 파일을 읽어줘
 파일의 첫 50줄만 읽어줘
 ```
 
-#### `write_file`
+#### `fast_write_file`
 Writes or modifies files with safety features
 - **Parameters**: `path`, `content`, `encoding`, `create_dirs`, `append`
 - **Features**: Automatic directory creation, append mode, encoding support
@@ -59,7 +59,7 @@ Writes or modifies files with safety features
 파일에 내용을 추가해줘
 ```
 
-#### `list_directory`
+#### `fast_list_directory`
 Lists directory contents with advanced filtering
 - **Parameters**: `path`, `page`, `page_size`, `pattern`, `show_hidden`, `sort_by`, `reverse`
 - **Features**: Pagination, sorting, filtering, hidden file control
@@ -69,7 +69,7 @@ Python 파일만 보여줘
 크기순으로 정렬해서 보여줘
 ```
 
-#### `get_file_info`
+#### `fast_get_file_info`
 Provides detailed file/directory information
 - **Parameters**: `path`
 - **Features**: Complete metadata, size analysis, Claude-optimized recommendations
@@ -78,9 +78,9 @@ Provides detailed file/directory information
 디렉토리 크기를 확인해줘
 ```
 
-### 🔍 Search & Discovery
+### Search & Discovery
 
-#### `search_files`
+#### `fast_search_files`
 Powerful file and content search
 - **Parameters**: `path`, `pattern`, `content_search`, `case_sensitive`, `max_results`
 - **Features**: Filename search, content search, case sensitivity options
@@ -90,7 +90,7 @@ Python 파일에서 'import pandas' 찾아줘
 사진 파일들을 검색해줘
 ```
 
-#### `get_directory_tree`
+#### `fast_get_directory_tree`
 Generates visual directory tree structures
 - **Parameters**: `path`, `max_depth`, `show_hidden`, `include_files`
 - **Features**: Customizable depth, hidden file control, file inclusion toggle
@@ -99,7 +99,7 @@ Generates visual directory tree structures
 3단계 깊이까지만 트리로 보여줘
 ```
 
-#### `find_large_files`
+#### `fast_find_large_files`
 Finds files above specified size thresholds
 - **Parameters**: `path`, `min_size`, `max_results`
 - **Features**: Size parsing (100MB, 1GB), sorted results, extension info
@@ -108,9 +108,9 @@ Finds files above specified size thresholds
 1GB 넘는 파일들을 디렉토리에서 찾아줘
 ```
 
-### 🔧 Management Operations
+### Management Operations
 
-#### `create_directory`
+#### `fast_create_directory`
 Creates directories with recursive support
 - **Parameters**: `path`, `recursive`
 - **Features**: Automatic parent directory creation, path validation
@@ -119,7 +119,7 @@ Creates directories with recursive support
 nested/deep/folder 구조를 생성해줘
 ```
 
-#### `get_disk_usage`
+#### `fast_get_disk_usage`
 Shows disk space information
 - **Parameters**: `path` (optional)
 - **Features**: Human-readable sizes, filesystem details
@@ -159,20 +159,20 @@ Shows disk space information
 
 ## Features & Optimizations
 
-### 🚀 Performance Features
+### Performance Features
 - **Smart Chunking**: Automatic handling of large files with 2MB chunks
 - **Pagination**: Efficient directory listing with customizable page sizes
 - **Response Limits**: 5MB maximum response size optimized for Claude
 - **Memory Efficient**: Stream-based reading for large files
 - **Fast Search**: Optimized file system traversal with exclude patterns
 
-### 🔒 Security Features
+### Security Features
 - **Path Validation**: Prevents directory traversal attacks
 - **Access Control**: Configurable allowed directories
 - **Safe Defaults**: Excludes system files and sensitive directories
 - **Error Isolation**: Graceful handling of permission errors
 
-### 🎯 Claude Optimizations
+### Claude Optimizations
 - **Token Awareness**: Automatic truncation at Claude's limits
 - **Structured Output**: JSON responses optimized for Claude parsing
 - **Context Hints**: Intelligent suggestions for large operations
@@ -213,11 +213,11 @@ Shows disk space information
 
 ### Original Heritage
 This project is a complete migration from the original **McpSynapse** Python implementation, featuring:
-- ✅ All 20 original tools ported to TypeScript
-- ✅ Enhanced performance with serverless architecture
-- ✅ Improved Claude integration and optimization
-- ✅ Zero-installation web deployment
-- ✅ Modern JSON-RPC implementation
+- All 10 original tools ported to TypeScript
+- Enhanced performance with serverless architecture
+- Improved Claude integration and optimization
+- Zero-installation web deployment
+- Modern JSON-RPC implementation
 
 ## Troubleshooting
 
@@ -304,4 +304,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for the Claude community** | Migrated from McpSynapse | Optimized for production use
+**Made for the Claude community** | Migrated from McpSynapse | Optimized for production use

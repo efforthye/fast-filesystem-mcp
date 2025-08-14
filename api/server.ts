@@ -96,12 +96,12 @@ function truncateContent(content: string, maxSize: number = CLAUDE_MAX_RESPONSE_
 // MCP 툴 목록 정의
 const MCP_TOOLS = [
   {
-    name: 'list_allowed_directories',
+    name: 'fast_list_allowed_directories',
     description: '허용된 디렉토리 목록을 조회합니다',
     inputSchema: { type: 'object', properties: {}, required: [] }
   },
   {
-    name: 'read_file',
+    name: 'fast_read_file',
     description: '파일을 읽습니다 (청킹 지원)',
     inputSchema: {
       type: 'object',
@@ -117,7 +117,7 @@ const MCP_TOOLS = [
     }
   },
   {
-    name: 'write_file',
+    name: 'fast_write_file',
     description: '파일을 쓰거나 수정합니다',
     inputSchema: {
       type: 'object',
@@ -132,7 +132,7 @@ const MCP_TOOLS = [
     }
   },
   {
-    name: 'list_directory',
+    name: 'fast_list_directory',
     description: '디렉토리 목록을 조회합니다 (페이징 지원)',
     inputSchema: {
       type: 'object',
@@ -149,7 +149,7 @@ const MCP_TOOLS = [
     }
   },
   {
-    name: 'get_file_info',
+    name: 'fast_get_file_info',
     description: '파일/디렉토리 상세 정보를 조회합니다',
     inputSchema: {
       type: 'object',
@@ -160,7 +160,7 @@ const MCP_TOOLS = [
     }
   },
   {
-    name: 'create_directory',
+    name: 'fast_create_directory',
     description: '디렉토리를 생성합니다',
     inputSchema: {
       type: 'object',
@@ -172,7 +172,7 @@ const MCP_TOOLS = [
     }
   },
   {
-    name: 'search_files',
+    name: 'fast_search_files',
     description: '파일을 검색합니다 (이름/내용)',
     inputSchema: {
       type: 'object',
@@ -187,7 +187,7 @@ const MCP_TOOLS = [
     }
   },
   {
-    name: 'get_directory_tree',
+    name: 'fast_get_directory_tree',
     description: '디렉토리 트리 구조를 가져옵니다',
     inputSchema: {
       type: 'object',
@@ -201,7 +201,7 @@ const MCP_TOOLS = [
     }
   },
   {
-    name: 'get_disk_usage',
+    name: 'fast_get_disk_usage',
     description: '디스크 사용량을 조회합니다',
     inputSchema: {
       type: 'object',
@@ -211,7 +211,7 @@ const MCP_TOOLS = [
     }
   },
   {
-    name: 'find_large_files',
+    name: 'fast_find_large_files',
     description: '큰 파일들을 찾습니다',
     inputSchema: {
       type: 'object',
@@ -242,7 +242,7 @@ export default async function handler(req: any, res: any) {
       res.status(200).json({
         status: 'online',
         name: 'fast-filesystem',
-        version: '2.0.0',
+        version: '2.1.0',
         deployment: new Date().toISOString(),
         environment: 'production',
         config: {
@@ -291,7 +291,7 @@ export default async function handler(req: any, res: any) {
             },
             serverInfo: {
               name: 'fast-filesystem',
-              version: '2.0.0'
+              version: '2.1.0'
             }
           }
         });
@@ -314,34 +314,34 @@ export default async function handler(req: any, res: any) {
           let result;
           
           switch (name) {
-            case 'list_allowed_directories':
+            case 'fast_list_allowed_directories':
               result = await handleListAllowedDirectories();
               break;
-            case 'read_file':
+            case 'fast_read_file':
               result = await handleReadFile(args);
               break;
-            case 'write_file':
+            case 'fast_write_file':
               result = await handleWriteFile(args);
               break;
-            case 'list_directory':
+            case 'fast_list_directory':
               result = await handleListDirectory(args);
               break;
-            case 'get_file_info':
+            case 'fast_get_file_info':
               result = await handleGetFileInfo(args);
               break;
-            case 'create_directory':
+            case 'fast_create_directory':
               result = await handleCreateDirectory(args);
               break;
-            case 'search_files':
+            case 'fast_search_files':
               result = await handleSearchFiles(args);
               break;
-            case 'get_directory_tree':
+            case 'fast_get_directory_tree':
               result = await handleGetDirectoryTree(args);
               break;
-            case 'get_disk_usage':
+            case 'fast_get_disk_usage':
               result = await handleGetDiskUsage(args);
               break;
-            case 'find_large_files':
+            case 'fast_find_large_files':
               result = await handleFindLargeFiles(args);
               break;
             default:
@@ -376,7 +376,7 @@ export default async function handler(req: any, res: any) {
           result: {
             status: 'ok',
             name: 'fast-filesystem',
-            version: '2.0.0',
+            version: '2.1.0',
             timestamp: new Date().toISOString()
           }
         });
@@ -416,7 +416,7 @@ async function handleListAllowedDirectories() {
     },
     server_info: {
       name: 'fast-filesystem',
-      version: '2.0.0',
+      version: '2.1.0',
       total_tools: MCP_TOOLS.length,
       timestamp: new Date().toISOString()
     }
