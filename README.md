@@ -180,28 +180,14 @@ Shows disk space information
 
 ## Advanced Configuration
 
-### Custom Allowed Directories
-```json
-{
-  "mcpServers": {
-    "fast-filesystem": {
-      "command": "npx",
-      "args": [
-        "@modelcontextprotocol/server-fetch", 
-        "https://fast-filesystem-mcp.vercel.app/api/server"
-      ],
-      "env": {
-        "ALLOWED_DIRS": "/Users/username/projects,/Users/username/documents"
-      }
-    }
-  }
-}
-```
+### Default Access
+The server provides access to common directories by default:
+- Home directory (`/Users/username` on macOS, `/home/username` on Linux)
+- `/tmp` directory for temporary files
+- Current working directory
 
-### Environment Variables
-- `ALLOWED_DIRS`: Comma-separated list of allowed directories
-- `MAX_FILE_SIZE`: Maximum file size for operations (default: 10GB)
-- `CHUNK_SIZE`: Default chunk size for reading (default: 2MB)
+### Security Note
+All file operations are validated against allowed directories. The server automatically excludes system files and sensitive directories for security.
 
 ## Architecture
 
