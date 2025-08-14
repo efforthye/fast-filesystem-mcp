@@ -172,43 +172,6 @@ const MCP_TOOLS = [
     }
   },
   {
-    name: 'copy_file',
-    description: '파일/디렉토리를 복사합니다',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        source: { type: 'string', description: '원본 경로' },
-        destination: { type: 'string', description: '대상 경로' },
-        overwrite: { type: 'boolean', description: '덮어쓰기 허용', default: false }
-      },
-      required: ['source', 'destination']
-    }
-  },
-  {
-    name: 'move_file',
-    description: '파일/디렉토리를 이동하거나 이름을 변경합니다',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        source: { type: 'string', description: '원본 경로' },
-        destination: { type: 'string', description: '대상 경로' }
-      },
-      required: ['source', 'destination']
-    }
-  },
-  {
-    name: 'delete_file',
-    description: '파일/디렉토리를 삭제합니다',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: '삭제할 경로' },
-        recursive: { type: 'boolean', description: '재귀적 삭제 (디렉토리용)', default: false }
-      },
-      required: ['path']
-    }
-  },
-  {
     name: 'search_files',
     description: '파일을 검색합니다 (이름/내용)',
     inputSchema: {
@@ -218,23 +181,9 @@ const MCP_TOOLS = [
         pattern: { type: 'string', description: '검색 패턴' },
         content_search: { type: 'boolean', description: '파일 내용 검색', default: false },
         case_sensitive: { type: 'boolean', description: '대소문자 구분', default: false },
-        max_results: { type: 'number', description: '최대 결과 수', default: 100 },
-        file_extensions: { type: 'string', description: '파일 확장자 필터 (쉼표 구분)' },
-        exclude_patterns: { type: 'string', description: '제외 패턴 (쉼표 구분)' }
+        max_results: { type: 'number', description: '최대 결과 수', default: 100 }
       },
       required: ['path', 'pattern']
-    }
-  },
-  {
-    name: 'watch_directory',
-    description: '디렉토리 변경사항을 모니터링합니다',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: '모니터링할 디렉토리' },
-        recursive: { type: 'boolean', description: '하위 디렉토리 포함', default: true }
-      },
-      required: ['path']
     }
   },
   {
@@ -249,57 +198,6 @@ const MCP_TOOLS = [
         include_files: { type: 'boolean', description: '파일 포함', default: true }
       },
       required: ['path']
-    }
-  },
-  {
-    name: 'compress_files',
-    description: '파일/디렉토리를 압축합니다',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        paths: { type: 'array', items: { type: 'string' }, description: '압축할 파일/디렉토리 목록' },
-        output_path: { type: 'string', description: '출력 압축 파일 경로' },
-        format: { type: 'string', description: '압축 형식', enum: ['zip', 'tar', 'tar.gz'], default: 'zip' }
-      },
-      required: ['paths', 'output_path']
-    }
-  },
-  {
-    name: 'extract_archive',
-    description: '압축 파일을 해제합니다',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        archive_path: { type: 'string', description: '압축 파일 경로' },
-        extract_to: { type: 'string', description: '해제할 디렉토리' },
-        overwrite: { type: 'boolean', description: '덮어쓰기 허용', default: false }
-      },
-      required: ['archive_path', 'extract_to']
-    }
-  },
-  {
-    name: 'calculate_checksum',
-    description: '파일의 체크섬을 계산합니다',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: '파일 경로' },
-        algorithm: { type: 'string', description: '해시 알고리즘', enum: ['md5', 'sha1', 'sha256'], default: 'sha256' }
-      },
-      required: ['path']
-    }
-  },
-  {
-    name: 'compare_files',
-    description: '두 파일을 비교합니다',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path1: { type: 'string', description: '첫 번째 파일 경로' },
-        path2: { type: 'string', description: '두 번째 파일 경로' },
-        show_diff: { type: 'boolean', description: '차이점 표시', default: true }
-      },
-      required: ['path1', 'path2']
     }
   },
   {
@@ -324,39 +222,23 @@ const MCP_TOOLS = [
       },
       required: ['path']
     }
-  },
-  {
-    name: 'cleanup_directory',
-    description: '디렉토리를 정리합니다 (임시파일, 캐시 등)',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: '정리할 디렉토리' },
-        dry_run: { type: 'boolean', description: '실제 삭제 없이 미리보기', default: true },
-        patterns: { type: 'string', description: '삭제할 패턴 (쉼표 구분)' }
-      },
-      required: ['path']
-    }
-  },
-  {
-    name: 'batch_rename',
-    description: '여러 파일을 일괄 이름 변경합니다',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: '대상 디렉토리' },
-        pattern: { type: 'string', description: '파일 필터 패턴' },
-        rename_pattern: { type: 'string', description: '새 이름 패턴' },
-        dry_run: { type: 'boolean', description: '실제 변경 없이 미리보기', default: true }
-      },
-      required: ['path', 'pattern', 'rename_pattern']
-    }
   }
 ];
 
 export default async function handler(req: any, res: any) {
+  // CORS 헤더 설정
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   try {
     if (req.method === 'GET') {
+      res.setHeader('Content-Type', 'application/json');
       res.status(200).json({
         status: 'online',
         name: 'fast-filesystem',
@@ -383,18 +265,43 @@ export default async function handler(req: any, res: any) {
           'Advanced file operations',
           'Directory tree traversal',
           'File search and content search',
-          'Compression and extraction',
-          'File comparison and checksums',
-          'Batch operations',
-          'Disk usage monitoring',
           'Claude optimized responses'
         ],
         github: 'https://github.com/efforthye/fast-filesystem-mcp'
       });
     } else if (req.method === 'POST') {
+      res.setHeader('Content-Type', 'application/json');
+      
       const { method, params, id } = req.body || {};
       
-      if (method === 'tools/list') {
+      if (method === 'initialize') {
+        // MCP 초기화 프로토콜
+        const { protocolVersion, capabilities, clientInfo } = params || {};
+        
+        res.status(200).json({
+          jsonrpc: '2.0',
+          id: id || 1,
+          result: {
+            protocolVersion: '2024-11-05',
+            capabilities: {
+              tools: {},
+              prompts: {},
+              resources: {},
+              logging: {}
+            },
+            serverInfo: {
+              name: 'fast-filesystem',
+              version: '2.0.0'
+            }
+          }
+        });
+      } else if (method === 'notifications/initialized') {
+        // 초기화 완료 알림 처리
+        res.status(200).json({
+          jsonrpc: '2.0',
+          result: {}
+        });
+      } else if (method === 'tools/list') {
         res.status(200).json({
           jsonrpc: '2.0',
           id: id || 1,
@@ -425,15 +332,6 @@ export default async function handler(req: any, res: any) {
             case 'create_directory':
               result = await handleCreateDirectory(args);
               break;
-            case 'copy_file':
-              result = await handleCopyFile(args);
-              break;
-            case 'move_file':
-              result = await handleMoveFile(args);
-              break;
-            case 'delete_file':
-              result = await handleDeleteFile(args);
-              break;
             case 'search_files':
               result = await handleSearchFiles(args);
               break;
@@ -445,12 +343,6 @@ export default async function handler(req: any, res: any) {
               break;
             case 'find_large_files':
               result = await handleFindLargeFiles(args);
-              break;
-            case 'calculate_checksum':
-              result = await handleCalculateChecksum(args);
-              break;
-            case 'compare_files':
-              result = await handleCompareFiles(args);
               break;
             default:
               throw new Error(`Tool not implemented: ${name}`);
@@ -467,7 +359,7 @@ export default async function handler(req: any, res: any) {
             }
           });
         } catch (error) {
-          res.status(500).json({
+          res.status(200).json({
             jsonrpc: '2.0',
             id: id || 1,
             error: {
@@ -490,18 +382,22 @@ export default async function handler(req: any, res: any) {
         });
       }
     } else {
-      res.setHeader('Allow', ['GET', 'POST']);
+      res.setHeader('Allow', ['GET', 'POST', 'OPTIONS']);
       res.status(405).json({
         error: 'Method Not Allowed',
-        allowed_methods: ['GET', 'POST']
+        allowed_methods: ['GET', 'POST', 'OPTIONS']
       });
     }
   } catch (error) {
     console.error('Server error:', error);
     res.status(500).json({
-      error: 'Internal Server Error',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
+      jsonrpc: '2.0',
+      id: req.body?.id || null,
+      error: {
+        code: -32603,
+        message: 'Internal Server Error',
+        data: error instanceof Error ? error.message : 'Unknown error'
+      }
     });
   }
 }
@@ -546,7 +442,7 @@ async function handleReadFile(args: any) {
     const selectedLines = lines.slice(line_start, line_start + linesToRead);
     
     return {
-      content: selectedLines,
+      content: selectedLines.join('\n'),
       mode: 'lines',
       start_line: line_start,
       lines_read: selectedLines.length,
@@ -774,95 +670,19 @@ async function handleCreateDirectory(args: any) {
   };
 }
 
-async function handleCopyFile(args: any) {
-  const { source, destination, overwrite = false } = args;
-  
-  const safeSrcPath = safePath(source);
-  const safeDstPath = safePath(destination);
-  
-  if (!overwrite) {
-    try {
-      await fs.access(safeDstPath);
-      throw new Error('Destination already exists and overwrite is false');
-    } catch (error: any) {
-      if (error.code !== 'ENOENT') throw error;
-    }
-  }
-  
-  await fs.copyFile(safeSrcPath, safeDstPath);
-  const stats = await fs.stat(safeDstPath);
-  
-  return {
-    message: 'File copied successfully',
-    source: safeSrcPath,
-    destination: safeDstPath,
-    size: stats.size,
-    size_readable: formatSize(stats.size),
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function handleMoveFile(args: any) {
-  const { source, destination } = args;
-  
-  const safeSrcPath = safePath(source);
-  const safeDstPath = safePath(destination);
-  
-  await fs.rename(safeSrcPath, safeDstPath);
-  const stats = await fs.stat(safeDstPath);
-  
-  return {
-    message: 'File moved successfully',
-    source: safeSrcPath,
-    destination: safeDstPath,
-    size: stats.size,
-    size_readable: formatSize(stats.size),
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function handleDeleteFile(args: any) {
-  const { path: targetPath, recursive = false } = args;
-  
-  const safePath_resolved = safePath(targetPath);
-  const stats = await fs.stat(safePath_resolved);
-  
-  if (stats.isDirectory()) {
-    if (recursive) {
-      await fs.rmdir(safePath_resolved, { recursive: true });
-    } else {
-      await fs.rmdir(safePath_resolved);
-    }
-  } else {
-    await fs.unlink(safePath_resolved);
-  }
-  
-  return {
-    message: `${stats.isDirectory() ? 'Directory' : 'File'} deleted successfully`,
-    path: safePath_resolved,
-    type: stats.isDirectory() ? 'directory' : 'file',
-    recursive: recursive,
-    timestamp: new Date().toISOString()
-  };
-}
-
 async function handleSearchFiles(args: any) {
   const { 
     path: searchPath, 
     pattern, 
     content_search = false, 
     case_sensitive = false, 
-    max_results = 100, 
-    file_extensions, 
-    exclude_patterns 
+    max_results = 100
   } = args;
   
   const safePath_resolved = safePath(searchPath);
   const maxResults = Math.min(max_results, 200);
   const results: any[] = [];
   
-  const extensions = file_extensions ? file_extensions.split(',').map((ext: string) => ext.trim().toLowerCase()) : null;
-  const excludeList = exclude_patterns ? exclude_patterns.split(',').map((p: string) => p.trim()) : [];
   const searchPattern = case_sensitive ? pattern : pattern.toLowerCase();
   
   async function searchDirectory(dirPath: string) {
@@ -876,14 +696,9 @@ async function handleSearchFiles(args: any) {
         
         const fullPath = path.join(dirPath, entry.name);
         
-        if (shouldExcludePath(fullPath, excludeList)) continue;
+        if (shouldExcludePath(fullPath)) continue;
         
         if (entry.isFile()) {
-          if (extensions) {
-            const ext = path.extname(entry.name).toLowerCase().slice(1);
-            if (!extensions.includes(ext)) continue;
-          }
-          
           const searchName = case_sensitive ? entry.name : entry.name.toLowerCase();
           let matched = false;
           let matchType = '';
@@ -1120,91 +935,6 @@ async function handleFindLargeFiles(args: any) {
     max_results_reached: results.length >= maxResults,
     timestamp: new Date().toISOString()
   };
-}
-
-async function handleCalculateChecksum(args: any) {
-  const { path: filePath, algorithm = 'sha256' } = args;
-  
-  const safePath_resolved = safePath(filePath);
-  const stats = await fs.stat(safePath_resolved);
-  
-  if (!stats.isFile()) {
-    throw new Error('Path is not a file');
-  }
-  
-  try {
-    const { stdout } = await execAsync(`${algorithm}sum "${safePath_resolved}"`);
-    const checksum = stdout.split(' ')[0];
-    
-    return {
-      path: safePath_resolved,
-      algorithm: algorithm,
-      checksum: checksum,
-      file_size: stats.size,
-      file_size_readable: formatSize(stats.size),
-      timestamp: new Date().toISOString()
-    };
-  } catch {
-    return {
-      error: `Unable to calculate ${algorithm} checksum`,
-      path: safePath_resolved,
-      timestamp: new Date().toISOString()
-    };
-  }
-}
-
-async function handleCompareFiles(args: any) {
-  const { path1, path2, show_diff = true } = args;
-  
-  const safePath1 = safePath(path1);
-  const safePath2 = safePath(path2);
-  
-  const [stats1, stats2] = await Promise.all([
-    fs.stat(safePath1),
-    fs.stat(safePath2)
-  ]);
-  
-  if (!stats1.isFile() || !stats2.isFile()) {
-    throw new Error('Both paths must be files');
-  }
-  
-  const result: any = {
-    path1: safePath1,
-    path2: safePath2,
-    size1: stats1.size,
-    size2: stats2.size,
-    size1_readable: formatSize(stats1.size),
-    size2_readable: formatSize(stats2.size),
-    modified1: stats1.mtime.toISOString(),
-    modified2: stats2.mtime.toISOString(),
-    sizes_match: stats1.size === stats2.size,
-    timestamp: new Date().toISOString()
-  };
-  
-  if (show_diff && stats1.size < 1024 * 1024) { // 1MB 이하만 diff 표시
-    try {
-      const [content1, content2] = await Promise.all([
-        fs.readFile(safePath1, 'utf-8'),
-        fs.readFile(safePath2, 'utf-8')
-      ]);
-      
-      result.content_identical = content1 === content2;
-      
-      if (!result.content_identical && content1.length < 10000 && content2.length < 10000) {
-        // 간단한 diff 정보
-        const lines1 = content1.split('\n');
-        const lines2 = content2.split('\n');
-        
-        result.line_count1 = lines1.length;
-        result.line_count2 = lines2.length;
-        result.diff_available = true;
-      }
-    } catch {
-      result.content_comparison = 'Unable to compare content (binary files?)';
-    }
-  }
-  
-  return result;
 }
 
 function getMimeType(filePath: string): string {
