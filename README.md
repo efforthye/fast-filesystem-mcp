@@ -56,12 +56,12 @@ Add to your Claude Desktop config.
 - `fast_list_allowed_directories` - List allowed directories
 
 ### Large File Writing
-The `fast_large_write_file` tool is specifically designed for handling large files.
-- Streaming: Writes files in chunks to prevent memory issues
-- Backup: Automatically creates backups before overwriting
-- Verification: Verifies file integrity after writing
-- Retry Logic: Automatic retry on failure with exponential backoff
-- Progress Tracking: Real-time monitoring of write progress
+- `fast_large_write_file`
+  - Streaming: Writes files in chunks to prevent memory issues
+  - Backup: Automatically creates backups before overwriting
+  - Verification: Verifies file integrity after writing
+  - Retry Logic: Automatic retry on failure with exponential backoff
+  - Progress Tracking: Real-time monitoring of write progress
 
 ## License
 MIT
