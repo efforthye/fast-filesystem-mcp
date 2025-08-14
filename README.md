@@ -2,19 +2,21 @@
 
 A powerful, Claude-optimized file system MCP (Model Context Protocol) server that provides comprehensive file and directory operations through a web API. Built with TypeScript and deployed on Vercel for easy access and high availability.
 
+*This project was created by cloning and enhancing the [vercel-labs/mcp-on-vercel](https://github.com/vercel-labs/mcp-on-vercel) template.*
+
 ## 🚀 Live Demo
 
 **Production URL**: https://fast-filesystem-e2oo1zkp1-efforthyes-projects.vercel.app/api/server
 
 ## Features
 
-🚀 **Claude Optimized**: Automatic response size limiting, chunking, and pagination
-📁 **File Operations**: Read, write, search, and manage files with intelligent streaming
-📂 **Directory Management**: List, create, and navigate directories with filtering
-🔍 **Smart Search**: Content and filename search with pattern matching
-🛡️ **Security**: Path validation and access control to prevent unauthorized access
-⚡ **Performance**: Efficient large file handling with memory optimization
-🌐 **Web API**: RESTful interface accessible from anywhere
+🚀 **Claude Optimized**: Automatic response size limiting, chunking, and pagination  
+📁 **File Operations**: Read, write, search, and manage files with intelligent streaming  
+📂 **Directory Management**: List, create, and navigate directories with filtering  
+🔍 **Smart Search**: Content and filename search with pattern matching  
+🛡️ **Security**: Path validation and access control to prevent unauthorized access  
+⚡ **Performance**: Efficient large file handling with memory optimization  
+🌐 **Web API**: RESTful interface accessible from anywhere  
 
 ## Quick Start
 
@@ -40,7 +42,7 @@ A powerful, Claude-optimized file system MCP (Model Context Protocol) server tha
 
 ### Configuration Locations
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ## Available Tools
@@ -168,24 +170,6 @@ If no `ALLOWED_DIRECTORIES` is set:
 - **Progress Indicators**: Shows when content is truncated
 - **Helpful Suggestions**: Provides next steps for large operations
 - **Error Recovery**: Clear error messages with resolution steps
-
-## Deployment
-
-### Deploy to Vercel
-
-1. **Fork this repository**
-2. **Connect to Vercel**: Import your fork in Vercel dashboard
-3. **Add Redis**: In Vercel, go to Storage → Add Redis database
-4. **Set Environment Variables**:
-   ```bash
-   ALLOWED_DIRECTORIES="/path1,/path2"  # Your allowed paths
-   ```
-5. **Deploy**: Automatic deployment on git push
-
-### Custom Domain (Optional)
-
-1. **Add Domain**: In Vercel project settings
-2. **Update Claude Config**: Use your custom domain in MCP configuration
 
 ## Development
 
@@ -329,10 +313,6 @@ fast-filesystem-mcp/
 └── README.md             # This file
 ```
 
-## License
-
-MIT License - see LICENSE file for details.
-
 ## Support
 
 - **Issues**: Report bugs on GitHub Issues
@@ -341,9 +321,9 @@ MIT License - see LICENSE file for details.
 
 ## Live Demo Status
 
-✅ **Production Deployment**: https://fast-filesystem-e2oo1zkp1-efforthye.vercel.app/api/server
-✅ **GitHub Repository**: https://github.com/efforthye/fast-filesystem-mcp
-✅ **Ready for Claude Desktop Integration**
+✅ **Production Deployment**: https://fast-filesystem-e2oo1zkp1-efforthyes-projects.vercel.app/api/server  
+✅ **GitHub Repository**: https://github.com/efforthye/fast-filesystem-mcp  
+✅ **Ready for Claude Desktop Integration**  
 
 ---
 
