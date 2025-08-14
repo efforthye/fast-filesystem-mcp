@@ -98,7 +98,11 @@ const MCP_TOOLS = [
   {
     name: 'fast_list_allowed_directories',
     description: '허용된 디렉토리 목록을 조회합니다',
-    inputSchema: { type: 'object', properties: {}, required: [] }
+    inputSchema: { 
+      type: 'object', 
+      properties: {}, 
+      required: [] 
+    }
   },
   {
     name: 'fast_read_file',
@@ -252,6 +256,7 @@ export default async function handler(req: any, res: any) {
               "fast-filesystem": {
                 "command": "npx",
                 "args": [
+                  "-y",
                   "@modelcontextprotocol/server-fetch",
                   "https://fast-filesystem-mcp.vercel.app/api/server"
                 ]
@@ -276,11 +281,9 @@ export default async function handler(req: any, res: any) {
       
       if (method === 'initialize') {
         // MCP 초기화 프로토콜
-        const { protocolVersion, capabilities, clientInfo } = params || {};
-        
         res.status(200).json({
           jsonrpc: '2.0',
-          id: id || 1,
+          id: id,
           result: {
             protocolVersion: '2024-11-05',
             capabilities: {
@@ -296,16 +299,16 @@ export default async function handler(req: any, res: any) {
           }
         });
       } else if (method === 'notifications/initialized') {
-        // 초기화 완료 알림 처리
-        res.status(200).json({
-          jsonrpc: '2.0',
-          result: {}
-        });
+        // 초기화 완료 알림 - notification이므로 응답하지 않음
+        res.status(200).end();
+        return;
       } else if (method === 'tools/list') {
         res.status(200).json({
           jsonrpc: '2.0',
-          id: id || 1,
-          result: { tools: MCP_TOOLS }
+          id: id,
+          result: { 
+            tools: MCP_TOOLS 
+          }
         });
       } else if (method === 'tools/call') {
         const { name, arguments: args } = params || {};
@@ -350,7 +353,7 @@ export default async function handler(req: any, res: any) {
           
           res.status(200).json({
             jsonrpc: '2.0',
-            id: id || 1,
+            id: id,
             result: {
               content: [{
                 type: 'text',
@@ -361,7 +364,7 @@ export default async function handler(req: any, res: any) {
         } catch (error) {
           res.status(200).json({
             jsonrpc: '2.0',
-            id: id || 1,
+            id: id,
             error: {
               code: -32603,
               message: 'Internal error',
@@ -370,14 +373,14 @@ export default async function handler(req: any, res: any) {
           });
         }
       } else {
+        // 알 수 없는 메서드에 대한 에러 응답
         res.status(200).json({
           jsonrpc: '2.0',
-          id: id || 1,
-          result: {
-            status: 'ok',
-            name: 'fast-filesystem',
-            version: '2.1.0',
-            timestamp: new Date().toISOString()
+          id: id,
+          error: {
+            code: -32601,
+            message: 'Method not found',
+            data: `Unknown method: ${method}`
           }
         });
       }
