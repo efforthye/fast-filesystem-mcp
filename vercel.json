@@ -1,9 +1,7 @@
 {
-  "buildCommand": "echo 'API functions built automatically'",
   "functions": {
     "api/server.ts": {
-      "maxDuration": 60,
-      "runtime": "nodejs20.x"
+      "maxDuration": 60
     }
   },
   "rewrites": [
