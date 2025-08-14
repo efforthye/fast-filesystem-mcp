@@ -1,5 +1,5 @@
 # Fast Filesystem MCP
-A high-performance Model Context Protocol (MCP) server that provides secure filesystem access for Claude and other AI assistants. Built with TypeScript and optimized for Claude's token limits and performance requirements. This project is based on the vercel-labs/mcp-on-vercel template.
+A high-performance Model Context Protocol (MCP) server that provides secure filesystem access for Claude and other AI assistants. Built with TypeScript and optimized for Claude's token limits and performance requirements. Also, This project is based on the vercel-labs/mcp-on-vercel template.
 
 ## Live Demo
 - Production Deployment: https://fast-filesystem-e2oo1zkp1-efforthyes-projects.vercel.app/api/server
@@ -55,12 +55,12 @@ A high-performance Model Context Protocol (MCP) server that provides secure file
 
 ## Usage Examples
 Once configured, you can use natural language commands in Claude Desktop
-"Show me the allowed directories"
-"List files in my Documents folder"
-"Read the first 50 lines of README.md"
-"Search for Python files in my projects"
-"Create a new directory called 'new-project'"
-"Find all files containing 'TODO' in my code"
+- "Show me the allowed directories"
+- "List files in my Documents folder"
+- "Read the first 50 lines of README.md"
+- "Search for Python files in my projects"
+- "Create a new directory called 'new-project'"
+- "Find all files containing 'TODO' in my code"
 
 ## Features
 ### Core Functionality
@@ -111,12 +111,12 @@ Once configured, you can use natural language commands in Claude Desktop
 
 ## API Reference
 ### Available Tools
-list_allowed_directories
+`list_allowed_directories`
 - Shows currently accessible directories
 - Displays Claude optimization limits
 - No parameters required
 
-read_file
+`read_file`
 - path: File path to read
 - start_offset: Starting byte position (optional)
 - max_size: Maximum bytes to read (optional)
@@ -124,7 +124,7 @@ read_file
 - line_count: Number of lines to read (optional)
 - encoding: Text encoding (default: utf-8)
 
-list_directory
+`list_directory`
 - path: Directory path to list
 - page: Page number (default: 1)
 - page_size: Items per page (optional)
@@ -133,14 +133,14 @@ list_directory
 - sort_by: Sort order (name|size|modified|type)
 - reverse: Reverse sort order (default: false)
 
-write_file
+`write_file`
 - path: File path to write
 - content: File content
 - encoding: Text encoding (default: utf-8)
 - create_dirs: Create directories if needed (default: true)
 - append: Append mode (default: false)
 
-search_files
+`search_files`
 - path: Directory to search in
 - pattern: Search pattern
 - content_search: Search file contents (default: false)
@@ -148,11 +148,11 @@ search_files
 - max_results: Maximum results (optional)
 - file_extensions: File type filter (optional)
 
-get_file_info
+`get_file_info`
 - path: File or directory path
 - Returns detailed metadata and recommendations
 
-create_directory
+`create_directory`
 - path: Directory path to create
 - Creates parent directories automatically
 
