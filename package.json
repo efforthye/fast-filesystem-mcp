@@ -1,6 +1,6 @@
 {
   "name": "fast-filesystem-mcp",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Fast Filesystem MCP Server - Advanced file operations for Claude Desktop with Claude-optimized chunking, pagination, and comprehensive directory operations",
   "main": "index.js",
   "type": "module",
@@ -21,7 +21,7 @@
     "url": "https://github.com/efforthye"
   },
   "license": "MIT",
-  "homepage": "https://github.com/efforthye/fast-filesystem-mcp#readme",
+  "homepage": "https://fast-filesystem-mcp.vercel.app/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/efforthye/fast-filesystem-mcp.git"
