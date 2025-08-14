@@ -12,7 +12,7 @@ A high-performance filesystem MCP server that provides advanced file operations 
 - Disk usage monitoring
 - Claude-optimized response size limits
 
-## Quick Setup (Recommended)
+## Quick Setup
 
 No installation required! Just add this to your Claude Desktop configuration:
 
@@ -31,26 +31,6 @@ No installation required! Just add this to your Claude Desktop configuration:
 ```
 
 **Important**: Restart Claude Desktop after adding the configuration.
-
-## Alternative Setup (Global Installation)
-
-If you prefer to install globally:
-
-```bash
-npm install -g fast-filesystem-mcp
-```
-
-Then use this configuration:
-
-```json
-{
-  "mcpServers": {
-    "fast-filesystem": {
-      "command": "fast-filesystem-mcp"
-    }
-  }
-}
-```
 
 ## Available Tools
 
