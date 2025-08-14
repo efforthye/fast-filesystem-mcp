@@ -1,5 +1,5 @@
 # Fast Filesystem MCP
-A high-performance Model Context Protocol (MCP) server that provides secure filesystem access for Claude and other AI assistants. Built with TypeScript and optimized for Claude's token limits and performance requirements. Also, This project is based on the vercel-labs/mcp-on-vercel template.
+A high-performance Model Context Protocol (MCP) server that provides secure filesystem access for Claude and other AI assistants. Built with TypeScript and optimized for Claude's token limits and performance requirements.
 
 ## Live Demo
 - Production Deployment: https://fast-filesystem-mcp.vercel.app/api/server
