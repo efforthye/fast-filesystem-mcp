@@ -359,6 +359,92 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     },
                     required: ['path']
                 }
+            },
+            {
+                name: 'fast_edit_file',
+                description: '파일의 특정 부분을 정교하게 편집합니다 (라인 기반)',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: '편집할 파일 경로' },
+                        old_text: { type: 'string', description: '찾을 기존 텍스트' },
+                        new_text: { type: 'string', description: '새로운 텍스트' },
+                        line_number: { type: 'number', description: '편집할 라인 번호 (1부터 시작)' },
+                        start_line: { type: 'number', description: '시작 라인 번호 (범위 편집용)' },
+                        end_line: { type: 'number', description: '끝 라인 번호 (범위 편집용)' },
+                        mode: {
+                            type: 'string',
+                            enum: ['replace', 'insert_before', 'insert_after', 'delete_line', 'replace_range'],
+                            description: '편집 모드',
+                            default: 'replace'
+                        },
+                        backup: { type: 'boolean', description: '백업 생성', default: true },
+                        create_if_missing: { type: 'boolean', description: '파일이 없으면 생성', default: false }
+                    },
+                    required: ['path']
+                }
+            },
+            {
+                name: 'fast_edit_multiple_blocks',
+                description: '파일의 여러 부분을 한 번에 편집합니다',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: '편집할 파일 경로' },
+                        edits: {
+                            type: 'array',
+                            description: '편집 작업 목록',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    old_text: { type: 'string', description: '찾을 기존 텍스트' },
+                                    new_text: { type: 'string', description: '새로운 텍스트' },
+                                    line_number: { type: 'number', description: '라인 번호' },
+                                    mode: {
+                                        type: 'string',
+                                        enum: ['replace', 'insert_before', 'insert_after', 'delete_line'],
+                                        default: 'replace'
+                                    }
+                                }
+                            }
+                        },
+                        backup: { type: 'boolean', description: '백업 생성', default: true }
+                    },
+                    required: ['path', 'edits']
+                }
+            },
+            {
+                name: 'fast_extract_lines',
+                description: '파일에서 특정 라인들을 추출합니다',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: '파일 경로' },
+                        line_numbers: { type: 'array', items: { type: 'number' }, description: '추출할 라인 번호들' },
+                        start_line: { type: 'number', description: '시작 라인 (범위 추출용)' },
+                        end_line: { type: 'number', description: '끝 라인 (범위 추출용)' },
+                        pattern: { type: 'string', description: '패턴으로 라인 추출' },
+                        context_lines: { type: 'number', description: '패턴 매칭시 앞뒤 컨텍스트 라인 수', default: 0 }
+                    },
+                    required: ['path']
+                }
+            },
+            {
+                name: 'fast_search_and_replace',
+                description: '파일에서 텍스트를 검색하고 일괄 치환합니다',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: '파일 경로' },
+                        search_pattern: { type: 'string', description: '검색할 패턴' },
+                        replace_text: { type: 'string', description: '치환할 텍스트' },
+                        use_regex: { type: 'boolean', description: '정규식 사용', default: false },
+                        case_sensitive: { type: 'boolean', description: '대소문자 구분', default: true },
+                        max_replacements: { type: 'number', description: '최대 치환 횟수', default: -1 },
+                        backup: { type: 'boolean', description: '백업 생성', default: true }
+                    },
+                    required: ['path', 'search_pattern', 'replace_text']
+                }
             }
         ],
     };
@@ -401,6 +487,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 break;
             case 'fast_find_large_files':
                 result = await handleFindLargeFiles(args);
+                break;
+            case 'fast_edit_file':
+                result = await handleEditFile(args);
+                break;
+            case 'fast_edit_multiple_blocks':
+                result = await handleEditMultipleBlocks(args);
+                break;
+            case 'fast_extract_lines':
+                result = await handleExtractLines(args);
+                break;
+            case 'fast_search_and_replace':
+                result = await handleSearchAndReplace(args);
                 break;
             default:
                 throw new Error(`Tool not implemented: ${name}`);
@@ -1058,7 +1156,370 @@ function getMimeType(filePath) {
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error('Fast Filesystem MCP Server v2.5.1 running on stdio (with smart emoji guidelines)');
+    console.error('Fast Filesystem MCP Server v2.5.3 running on stdio (with smart emoji guidelines and editing tools)');
+}
+// 편집 관련 핸들러 함수들
+async function handleEditFile(args) {
+    const { path: filePath, old_text, new_text, line_number, start_line, end_line, mode = 'replace', backup = true, create_if_missing = false } = args;
+    const safePath_resolved = safePath(filePath);
+    // 파일 존재 확인
+    let fileExists = true;
+    try {
+        await fs.access(safePath_resolved);
+    }
+    catch {
+        fileExists = false;
+        if (!create_if_missing) {
+            throw new Error(`File does not exist: ${safePath_resolved}`);
+        }
+    }
+    let content = '';
+    if (fileExists) {
+        content = await fs.readFile(safePath_resolved, 'utf-8');
+    }
+    const lines = content.split('\n');
+    let modifiedLines = [...lines];
+    let changesCount = 0;
+    const backupPath = backup ? `${safePath_resolved}.backup.${Date.now()}` : null;
+    // 백업 생성
+    if (fileExists && backup) {
+        await fs.copyFile(safePath_resolved, backupPath);
+    }
+    try {
+        switch (mode) {
+            case 'replace':
+                if (old_text && new_text !== undefined) {
+                    // 텍스트 기반 치환
+                    for (let i = 0; i < modifiedLines.length; i++) {
+                        if (modifiedLines[i].includes(old_text)) {
+                            modifiedLines[i] = modifiedLines[i].replace(old_text, new_text);
+                            changesCount++;
+                        }
+                    }
+                }
+                else if (line_number && new_text !== undefined) {
+                    // 라인 번호 기반 치환
+                    const idx = line_number - 1;
+                    if (idx >= 0 && idx < modifiedLines.length) {
+                        modifiedLines[idx] = new_text;
+                        changesCount++;
+                    }
+                }
+                break;
+            case 'replace_range':
+                if (start_line && end_line && new_text !== undefined) {
+                    const startIdx = start_line - 1;
+                    const endIdx = end_line - 1;
+                    if (startIdx >= 0 && endIdx < modifiedLines.length && startIdx <= endIdx) {
+                        const newLines = new_text.split('\n');
+                        modifiedLines.splice(startIdx, endIdx - startIdx + 1, ...newLines);
+                        changesCount++;
+                    }
+                }
+                break;
+            case 'insert_before':
+                if (line_number && new_text !== undefined) {
+                    const idx = line_number - 1;
+                    if (idx >= 0) {
+                        modifiedLines.splice(idx, 0, new_text);
+                        changesCount++;
+                    }
+                }
+                break;
+            case 'insert_after':
+                if (line_number && new_text !== undefined) {
+                    const idx = line_number;
+                    if (idx >= 0) {
+                        modifiedLines.splice(idx, 0, new_text);
+                        changesCount++;
+                    }
+                }
+                break;
+            case 'delete_line':
+                if (line_number) {
+                    const idx = line_number - 1;
+                    if (idx >= 0 && idx < modifiedLines.length) {
+                        modifiedLines.splice(idx, 1);
+                        changesCount++;
+                    }
+                }
+                break;
+        }
+        // 수정된 내용 저장
+        const newContent = modifiedLines.join('\n');
+        // 디렉토리 생성
+        const dir = path.dirname(safePath_resolved);
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(safePath_resolved, newContent, 'utf-8');
+        const stats = await fs.stat(safePath_resolved);
+        return {
+            message: `File edited successfully`,
+            path: safePath_resolved,
+            mode: mode,
+            changes_made: changesCount,
+            original_lines: lines.length,
+            new_lines: modifiedLines.length,
+            backup_created: backupPath,
+            size: stats.size,
+            size_readable: formatSize(stats.size),
+            timestamp: new Date().toISOString()
+        };
+    }
+    catch (error) {
+        // 에러 시 백업에서 복구
+        if (fileExists && backup && backupPath) {
+            try {
+                await fs.copyFile(backupPath, safePath_resolved);
+            }
+            catch {
+                // 복구 실패
+            }
+        }
+        throw error;
+    }
+}
+async function handleEditMultipleBlocks(args) {
+    const { path: filePath, edits, backup = true } = args;
+    const safePath_resolved = safePath(filePath);
+    const content = await fs.readFile(safePath_resolved, 'utf-8');
+    const lines = content.split('\n');
+    let modifiedLines = [...lines];
+    const backupPath = backup ? `${safePath_resolved}.backup.${Date.now()}` : null;
+    let totalChanges = 0;
+    // 백업 생성
+    if (backup) {
+        await fs.copyFile(safePath_resolved, backupPath);
+    }
+    try {
+        // 편집을 라인 번호 역순으로 정렬 (뒤에서부터 편집하여 인덱스 변화 방지)
+        const sortedEdits = [...edits].sort((a, b) => {
+            const lineA = a.line_number || 0;
+            const lineB = b.line_number || 0;
+            return lineB - lineA;
+        });
+        for (const edit of sortedEdits) {
+            const { old_text, new_text, line_number, mode = 'replace' } = edit;
+            let changesCount = 0;
+            switch (mode) {
+                case 'replace':
+                    if (old_text && new_text !== undefined) {
+                        for (let i = 0; i < modifiedLines.length; i++) {
+                            if (modifiedLines[i].includes(old_text)) {
+                                modifiedLines[i] = modifiedLines[i].replace(old_text, new_text);
+                                changesCount++;
+                            }
+                        }
+                    }
+                    else if (line_number && new_text !== undefined) {
+                        const idx = line_number - 1;
+                        if (idx >= 0 && idx < modifiedLines.length) {
+                            modifiedLines[idx] = new_text;
+                            changesCount++;
+                        }
+                    }
+                    break;
+                case 'insert_before':
+                    if (line_number && new_text !== undefined) {
+                        const idx = line_number - 1;
+                        if (idx >= 0) {
+                            modifiedLines.splice(idx, 0, new_text);
+                            changesCount++;
+                        }
+                    }
+                    break;
+                case 'insert_after':
+                    if (line_number && new_text !== undefined) {
+                        const idx = line_number;
+                        if (idx >= 0) {
+                            modifiedLines.splice(idx, 0, new_text);
+                            changesCount++;
+                        }
+                    }
+                    break;
+                case 'delete_line':
+                    if (line_number) {
+                        const idx = line_number - 1;
+                        if (idx >= 0 && idx < modifiedLines.length) {
+                            modifiedLines.splice(idx, 1);
+                            changesCount++;
+                        }
+                    }
+                    break;
+            }
+            totalChanges += changesCount;
+        }
+        // 수정된 내용 저장
+        const newContent = modifiedLines.join('\n');
+        await fs.writeFile(safePath_resolved, newContent, 'utf-8');
+        const stats = await fs.stat(safePath_resolved);
+        return {
+            message: `Multiple blocks edited successfully`,
+            path: safePath_resolved,
+            total_edits: edits.length,
+            total_changes: totalChanges,
+            original_lines: lines.length,
+            new_lines: modifiedLines.length,
+            backup_created: backupPath,
+            size: stats.size,
+            size_readable: formatSize(stats.size),
+            timestamp: new Date().toISOString()
+        };
+    }
+    catch (error) {
+        // 에러 시 백업에서 복구
+        if (backup && backupPath) {
+            try {
+                await fs.copyFile(backupPath, safePath_resolved);
+            }
+            catch {
+                // 복구 실패
+            }
+        }
+        throw error;
+    }
+}
+async function handleExtractLines(args) {
+    const { path: filePath, line_numbers, start_line, end_line, pattern, context_lines = 0 } = args;
+    const safePath_resolved = safePath(filePath);
+    const content = await fs.readFile(safePath_resolved, 'utf-8');
+    const lines = content.split('\n');
+    let extractedLines = [];
+    if (line_numbers && Array.isArray(line_numbers)) {
+        // 특정 라인 번호들 추출
+        for (const lineNum of line_numbers) {
+            const idx = lineNum - 1;
+            if (idx >= 0 && idx < lines.length) {
+                extractedLines.push({
+                    line_number: lineNum,
+                    content: lines[idx]
+                });
+            }
+        }
+    }
+    else if (start_line && end_line) {
+        // 범위 추출
+        const startIdx = start_line - 1;
+        const endIdx = end_line - 1;
+        if (startIdx >= 0 && endIdx < lines.length && startIdx <= endIdx) {
+            for (let i = startIdx; i <= endIdx; i++) {
+                extractedLines.push({
+                    line_number: i + 1,
+                    content: lines[i]
+                });
+            }
+        }
+    }
+    else if (pattern) {
+        // 패턴 매칭으로 추출
+        const regex = new RegExp(pattern, 'gi');
+        for (let i = 0; i < lines.length; i++) {
+            if (regex.test(lines[i])) {
+                // 컨텍스트 라인 포함
+                const contextStart = Math.max(0, i - context_lines);
+                const contextEnd = Math.min(lines.length - 1, i + context_lines);
+                for (let j = contextStart; j <= contextEnd; j++) {
+                    const existing = extractedLines.find(el => el.line_number === j + 1);
+                    if (!existing) {
+                        extractedLines.push({
+                            line_number: j + 1,
+                            content: lines[j]
+                        });
+                    }
+                }
+            }
+        }
+    }
+    // 라인 번호순 정렬
+    extractedLines.sort((a, b) => a.line_number - b.line_number);
+    return {
+        extracted_lines: extractedLines,
+        total_lines_extracted: extractedLines.length,
+        total_file_lines: lines.length,
+        path: safePath_resolved,
+        timestamp: new Date().toISOString()
+    };
+}
+async function handleSearchAndReplace(args) {
+    const { path: filePath, search_pattern, replace_text, use_regex = false, case_sensitive = true, max_replacements = -1, backup = true } = args;
+    const safePath_resolved = safePath(filePath);
+    const content = await fs.readFile(safePath_resolved, 'utf-8');
+    const backupPath = backup ? `${safePath_resolved}.backup.${Date.now()}` : null;
+    // 백업 생성
+    if (backup) {
+        await fs.copyFile(safePath_resolved, backupPath);
+    }
+    try {
+        let newContent;
+        let replacementCount = 0;
+        if (use_regex) {
+            const flags = case_sensitive ? 'g' : 'gi';
+            const regex = new RegExp(search_pattern, flags);
+            if (max_replacements > 0) {
+                // 제한된 횟수만 치환
+                let count = 0;
+                newContent = content.replace(regex, (match) => {
+                    if (count < max_replacements) {
+                        count++;
+                        replacementCount++;
+                        return replace_text;
+                    }
+                    return match;
+                });
+            }
+            else {
+                // 모든 매칭 치환
+                newContent = content.replace(regex, () => {
+                    replacementCount++;
+                    return replace_text;
+                });
+            }
+        }
+        else {
+            // 단순 문자열 치환
+            const searchStr = case_sensitive ? search_pattern : search_pattern.toLowerCase();
+            const contentToSearch = case_sensitive ? content : content.toLowerCase();
+            newContent = content;
+            let lastIndex = 0;
+            let currentIndex = contentToSearch.indexOf(searchStr, lastIndex);
+            while (currentIndex !== -1 && (max_replacements === -1 || replacementCount < max_replacements)) {
+                newContent = newContent.substring(0, currentIndex) +
+                    replace_text +
+                    newContent.substring(currentIndex + search_pattern.length);
+                replacementCount++;
+                lastIndex = currentIndex + replace_text.length;
+                // 다음 매칭 위치 찾기
+                const adjustedContent = case_sensitive ? newContent : newContent.toLowerCase();
+                currentIndex = adjustedContent.indexOf(searchStr, lastIndex);
+            }
+        }
+        await fs.writeFile(safePath_resolved, newContent, 'utf-8');
+        const stats = await fs.stat(safePath_resolved);
+        return {
+            message: `Search and replace completed`,
+            path: safePath_resolved,
+            search_pattern: search_pattern,
+            replace_text: replace_text,
+            replacements_made: replacementCount,
+            use_regex: use_regex,
+            case_sensitive: case_sensitive,
+            backup_created: backupPath,
+            size: stats.size,
+            size_readable: formatSize(stats.size),
+            timestamp: new Date().toISOString()
+        };
+    }
+    catch (error) {
+        // 에러 시 백업에서 복구
+        if (backup && backupPath) {
+            try {
+                await fs.copyFile(backupPath, safePath_resolved);
+            }
+            catch {
+                // 복구 실패
+            }
+        }
+        throw error;
+    }
 }
 main().catch((error) => {
     console.error('Server failed to start:', error);

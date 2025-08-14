@@ -42,6 +42,12 @@ Add to your Claude Desktop config.
 - `fast_large_write_file` - Stream-based writing for large files
 - `fast_get_file_info` - Get detailed file information
 
+### Advanced Editing Tools
+- `fast_edit_file` - Precise line-based file editing with multiple modes
+- `fast_edit_multiple_blocks` - Edit multiple sections in a single operation
+- `fast_extract_lines` - Extract specific lines or ranges from files
+- `fast_search_and_replace` - Advanced search and replace with regex support
+
 ### Directory Operations
 - `fast_list_directory` - List directory contents with pagination
 - `fast_create_directory` - Create directories recursively
@@ -54,6 +60,97 @@ Add to your Claude Desktop config.
 ### System Operations
 - `fast_get_disk_usage` - Check disk usage information
 - `fast_list_allowed_directories` - List allowed directories
+
+## Editing Tools
+
+### Precise File Editing
+
+The fast-filesystem MCP now includes powerful editing tools for source code and text files:
+
+#### `fast_edit_file` - Single Block Editing
+Supports multiple editing modes:
+- **replace**: Replace text or entire lines
+- **replace_range**: Replace multiple lines at once  
+- **insert_before**: Insert content before specified line
+- **insert_after**: Insert content after specified line
+- **delete_line**: Delete specific lines
+
+```json
+{
+  "tool": "fast_edit_file",
+  "arguments": {
+    "path": "/path/to/file.js",
+    "mode": "replace",
+    "line_number": 10,
+    "new_text": "const newVariable = 'updated value';",
+    "backup": true
+  }
+}
+```
+
+#### `fast_edit_multiple_blocks` - Batch Editing
+Edit multiple parts of a file in a single operation:
+
+```json
+{
+  "tool": "fast_edit_multiple_blocks", 
+  "arguments": {
+    "path": "/path/to/file.js",
+    "edits": [
+      {
+        "mode": "replace",
+        "old_text": "oldFunction()",
+        "new_text": "newFunction()"
+      },
+      {
+        "mode": "insert_after",
+        "line_number": 5,
+        "new_text": "// Added comment"
+      }
+    ],
+    "backup": true
+  }
+}
+```
+
+#### `fast_extract_lines` - Line Extraction
+Extract specific lines by number, range, or pattern:
+
+```json
+{
+  "tool": "fast_extract_lines",
+  "arguments": {
+    "path": "/path/to/file.js",
+    "pattern": "function.*",
+    "context_lines": 2
+  }
+}
+```
+
+#### `fast_search_and_replace` - Advanced Replace
+Powerful search and replace with regex support:
+
+```json
+{
+  "tool": "fast_search_and_replace",
+  "arguments": {
+    "path": "/path/to/file.js", 
+    "search_pattern": "console\\.log\\(.*\\)",
+    "replace_text": "logger.info($1)",
+    "use_regex": true,
+    "max_replacements": 10,
+    "backup": true
+  }
+}
+```
+
+### Editing Features
+- **Automatic Backup**: Creates backups before modifications
+- **Error Recovery**: Restores from backup on failure
+- **Line-based Operations**: Precise control over specific lines
+- **Pattern Matching**: Regular expression support
+- **Batch Operations**: Multiple edits in single transaction
+- **Context Extraction**: Extract lines with surrounding context
 
 ### Large File Writing
 - `fast_large_write_file`
