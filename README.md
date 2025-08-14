@@ -84,13 +84,6 @@ Once configured, you can use natural language commands in Claude Desktop
 - Safe file operations only
 
 ## Improvements Over Other Filesystem MCPs
-
-### Zero Installation
-- No Python environment required
-- No local dependencies
-- Runs entirely on Vercel serverless platform
-- Works out of the box with just URL configuration
-
 ### Performance Optimizations
 - Built specifically for Claude's token limits
 - Automatic content chunking and pagination
