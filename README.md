@@ -2,8 +2,7 @@
 Advanced filesystem operations for Claude Desktop with large file handling capabilities and Claude-optimized features.
 
 ## Quick Start
-Add to your Claude Desktop config:
-
+Add to your Claude Desktop config
 ```json
 {
   "mcpServers": {
