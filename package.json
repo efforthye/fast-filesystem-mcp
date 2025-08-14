@@ -1,6 +1,6 @@
 {
   "name": "fast-filesystem-mcp",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "description": "Fast Filesystem MCP Server - Advanced file operations for Claude Desktop with Claude-optimized chunking, pagination, and comprehensive directory operations",
   "main": "index.js",
   "type": "module",
