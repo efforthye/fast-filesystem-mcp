@@ -104,7 +104,7 @@ function truncateContent(content: string, maxSize: number = CLAUDE_MAX_RESPONSE_
 const server = new Server(
   {
     name: 'fast-filesystem',
-    version: '2.1.8',
+    version: '2.3.1',
   },
   {
     capabilities: {
@@ -320,7 +320,7 @@ async function handleListAllowedDirectories() {
     },
     server_info: {
       name: 'fast-filesystem',
-      version: '2.1.8',
+      version: '2.3.1',
       timestamp: new Date().toISOString()
     }
   };
