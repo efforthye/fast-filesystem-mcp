@@ -4,6 +4,21 @@ A powerful, Claude-optimized file system MCP (Model Context Protocol) server tha
 
 *This project was created by cloning and enhancing the [vercel-labs/mcp-on-vercel](https://github.com/vercel-labs/mcp-on-vercel) template.*
 
+## ✨ Improvements Over Standard Filesystem MCPs
+
+**vs. Basic MCP Implementations:**
+- **Claude-Optimized Responses**: Automatic chunking and pagination to prevent response size limits
+- **Smart Memory Management**: Efficient handling of large files without memory overflow  
+- **Enhanced Error Recovery**: Clear error messages with actionable next steps
+- **Security Hardening**: Comprehensive path validation and access control
+- **Performance Optimization**: Intelligent caching and early termination for large operations
+
+**vs. Python-based Solutions:**
+- **Zero Installation**: No Python dependencies or virtual environments needed
+- **Serverless Ready**: Native TypeScript deployment on Vercel with automatic scaling
+- **Web-First Architecture**: RESTful API design for maximum compatibility
+- **Better Integration**: Seamless NPX-based installation for Claude Desktop
+
 ## 🚀 Live Demo
 
 **Production URL**: https://fast-filesystem-e2oo1zkp1-efforthyes-projects.vercel.app/api/server
@@ -293,9 +308,9 @@ Ensure Redis is properly configured in Vercel:
 ## Contributing
 
 1. **Fork the repository**
-2. **Create feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit changes**: `git commit -m 'Add amazing feature'`
-4. **Push to branch**: `git push origin feature/amazing-feature`
+2. **Create feature branch**: `git checkout -b feature/new-feature`
+3. **Commit changes**: `git commit -m 'Add new feature'`
+4. **Push to branch**: `git push origin feature/new-feature`
 5. **Open Pull Request**
 
 ## Repository Structure
