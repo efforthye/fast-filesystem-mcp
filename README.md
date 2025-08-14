@@ -2,6 +2,10 @@
 
 A powerful, Claude-optimized file system MCP (Model Context Protocol) server that provides comprehensive file and directory operations through a web API. Built with TypeScript and deployed on Vercel for easy access and high availability.
 
+## 🚀 Live Demo
+
+**Production URL**: https://fast-filesystem-e2oo1zkp1-efforthyes-projects.vercel.app/api/server
+
 ## Features
 
 🚀 **Claude Optimized**: Automatic response size limiting, chunking, and pagination
@@ -25,7 +29,7 @@ A powerful, Claude-optimized file system MCP (Model Context Protocol) server tha
       "command": "npx",
       "args": [
         "@modelcontextprotocol/server-fetch",
-        "https://your-deployment-url.vercel.app/api/server"
+        "https://fast-filesystem-e2oo1zkp1-efforthyes-projects.vercel.app/api/server"
       ]
     }
   }
@@ -189,7 +193,7 @@ If no `ALLOWED_DIRECTORIES` is set:
 
 ```bash
 # Clone and install
-git clone https://github.com/yourusername/fast-filesystem-mcp.git
+git clone https://github.com/efforthye/fast-filesystem-mcp.git
 cd fast-filesystem-mcp
 pnpm install
 
@@ -245,6 +249,30 @@ Content-Type: application/json
 }
 ```
 
+## Example Usage with Claude
+
+Once configured, you can use natural language commands with Claude:
+
+### File Reading Examples
+- "Read the first 100 lines of my config file"
+- "Show me the contents of package.json"
+- "What's in the README file?"
+
+### Directory Operations
+- "List all files in my project directory"
+- "Show me the largest files in Downloads"
+- "Find all Python files in my code folder"
+
+### File Search
+- "Search for files containing 'TODO' in my project"
+- "Find all JavaScript files with 'import React'"
+- "List all .env files in my system"
+
+### File Management
+- "Create a new directory called 'backups'"
+- "Write a simple Python script to hello.py"
+- "Show me information about this large file"
+
 ## Troubleshooting
 
 ### Common Issues
@@ -264,6 +292,13 @@ Content-Type: application/json
 - Apply filters with `pattern` parameter
 - Sort by specific criteria to find relevant files
 
+### Authentication Issues
+
+If you encounter authentication prompts:
+1. Ensure the MCP server is public (no authentication required)
+2. Check Vercel deployment settings
+3. Use the provided public URL in your Claude configuration
+
 ### Redis Connection Issues
 
 Ensure Redis is properly configured in Vercel:
@@ -279,6 +314,21 @@ Ensure Redis is properly configured in Vercel:
 4. **Push to branch**: `git push origin feature/amazing-feature`
 5. **Open Pull Request**
 
+## Repository Structure
+
+```
+fast-filesystem-mcp/
+├── api/
+│   └── server.ts          # Main MCP server implementation
+├── scripts/
+│   └── test-client.mjs    # Test client for API endpoints
+├── public/
+├── package.json           # Dependencies and scripts
+├── vercel.json           # Vercel deployment configuration
+├── tsconfig.json         # TypeScript configuration
+└── README.md             # This file
+```
+
 ## License
 
 MIT License - see LICENSE file for details.
@@ -288,6 +338,12 @@ MIT License - see LICENSE file for details.
 - **Issues**: Report bugs on GitHub Issues
 - **Documentation**: Check README and inline code comments
 - **Community**: Join discussions in GitHub Discussions
+
+## Live Demo Status
+
+✅ **Production Deployment**: https://fast-filesystem-e2oo1zkp1-efforthye.vercel.app/api/server
+✅ **GitHub Repository**: https://github.com/efforthye/fast-filesystem-mcp
+✅ **Ready for Claude Desktop Integration**
 
 ---
 
