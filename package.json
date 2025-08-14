@@ -15,8 +15,20 @@
     "prepare": "npm run build"
   },
   "keywords": ["mcp", "filesystem", "claude", "ai", "typescript", "desktop"],
-  "author": "efforthye",
+  "author": {
+    "name": "efforthye",
+    "email": "efforthye@gmail.com",
+    "url": "https://github.com/efforthye"
+  },
   "license": "MIT",
+  "homepage": "https://github.com/efforthye/fast-filesystem-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/efforthye/fast-filesystem-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/efforthye/fast-filesystem-mcp/issues"
+  },
   "packageManager": "pnpm@9.4.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.2"
