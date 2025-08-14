@@ -1,138 +1,95 @@
-# Fast Filesystem MCP
+# Fast Filesystem MCP Server
 
-A powerful Model Context Protocol (MCP) server providing advanced filesystem operations for Claude and other AI assistants.
+로컬에서 실행되는 고성능 파일시스템 MCP 서버로, Claude Desktop과 함께 사용할 수 있는 고급 파일 작업 기능을 제공합니다.
 
-## Quick Setup
+## 기능
 
-Add this configuration to your Claude Desktop config file:
+- 파일 읽기/쓰기 (청킹 지원)
+- 디렉토리 탐색 및 페이징
+- 파일/디렉토리 검색 (이름 및 내용)
+- 디렉토리 트리 구조 표시
+- 대용량 파일 검색
+- 디스크 사용량 조회
+- Claude 최적화된 응답 크기 제한
+
+## 설치
+
+```bash
+npm install -g fast-filesystem-mcp
+```
+
+또는 로컬에서 빌드:
+
+```bash
+git clone https://github.com/efforthye/fast-filesystem-mcp.git
+cd fast-filesystem-mcp
+npm install
+npm run build
+```
+
+## Claude Desktop 설정
+
+Claude Desktop의 설정 파일에 다음을 추가하세요:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "fast-filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://fast-filesystem-mcp.vercel.app/api/server"
-      ]
+      "command": "fast-filesystem-mcp"
     }
   }
 }
 ```
 
-### Configuration File Locations
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-**Important**: Restart Claude Desktop after adding the configuration.
-
-## Available Tools
-
-### Core Operations
-- `fast_list_allowed_directories` - Show accessible directories
-- `fast_read_file` - Read files with chunking support
-- `fast_write_file` - Write or modify files
-- `fast_list_directory` - List directory contents with pagination
-- `fast_get_file_info` - Get detailed file/directory information
-- `fast_create_directory` - Create directories
-
-### Advanced Operations
-- `fast_search_files` - Search files by name or content
-- `fast_get_directory_tree` - Generate directory tree structures
-- `fast_find_large_files` - Find files above size thresholds
-- `fast_get_disk_usage` - Show disk space information
-
-## Usage Examples
-
-```
-"Show me the allowed directories"
-"Read the package.json file"
-"List files in my Documents folder" 
-"Search for TypeScript files containing 'interface'"
-"Show me the project folder structure"
-"Find files larger than 100MB"
-"Create a new directory called 'projects'"
-"What's the disk usage of the current directory?"
-```
-
-## Features
-
-- **Security**: Path validation and access control to safe directories only
-- **Performance**: Smart chunking for large files (2MB chunks)
-- **Scalability**: Pagination for large directories (1000 items max)
-- **Search**: File and content search capabilities
-- **Claude-optimized**: Response size limits (5MB) and efficient streaming
-- **Memory-efficient**: Stream-based reading for large files
-
-## Server Info
-
-- **Production URL**: https://fast-filesystem-mcp.vercel.app/api/server
-- **Version**: 2.1.0
-- **Runtime**: Node.js 18+ on Vercel Serverless
-- **Protocol**: JSON-RPC 2.0 over HTTP
-- **Transport**: HTTP with mcp-remote client
-
-## Troubleshooting
-
-### Connection Issues
-- Restart Claude Desktop after config changes
-- Ensure you're using `mcp-remote` (not `@modelcontextprotocol/server-fetch`)
-- Check internet connection to Vercel
-
-### Permission Denied
-- Check that the path is within allowed directories
-- Verify file permissions on your system
-- Only `/home`, `/Users`, and `/tmp` directories are accessible
-
-### Large Files
-- Use chunked reading with `line_start` and `line_count` parameters
-- Files over 2MB are automatically chunked
-- For very large files, request specific byte ranges
-
-### Performance Tips
-- Use pagination for directories with many files
-- Set `max_results` for file searches to reasonable limits
-- Consider using `show_hidden: false` to improve directory listing speed
-
-## Complete Configuration Example
+로컬 빌드를 사용하는 경우:
 
 ```json
 {
-  "globalShortcut": "Cmd+L",
   "mcpServers": {
     "fast-filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://fast-filesystem-mcp.vercel.app/api/server"
-      ]
-    },
-    "other-mcp-servers": {
-      "command": "npx",
-      "args": ["other-package"]
+      "command": "node",
+      "args": ["/path/to/fast-filesystem-mcp/index.js"]
     }
   }
 }
 ```
 
-## Contributing
+## 사용 가능한 도구
 
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/name`
-3. Commit changes: `git commit -m 'Add feature'`
-4. Push to branch: `git push origin feature/name`
-5. Open Pull Request
+- `fast_list_allowed_directories` - 허용된 디렉토리 목록 조회
+- `fast_read_file` - 파일 읽기 (청킹 지원)
+- `fast_write_file` - 파일 쓰기/수정
+- `fast_list_directory` - 디렉토리 목록 조회 (페이징)
+- `fast_get_file_info` - 파일/디렉토리 정보 조회
+- `fast_create_directory` - 디렉토리 생성
+- `fast_search_files` - 파일 검색 (이름/내용)
+- `fast_get_directory_tree` - 디렉토리 트리 구조
+- `fast_get_disk_usage` - 디스크 사용량 조회
+- `fast_find_large_files` - 대용량 파일 검색
 
-## License
+## 보안
 
-MIT License - see LICENSE file for details.
+기본적으로 다음 디렉토리에만 접근 가능합니다:
+- 홈 디렉토리 (`$HOME`)
+- `/tmp`
+- `/Users` (macOS)
+- `/home` (Linux)
 
-## Support
+제외되는 디렉토리/파일:
+- `node_modules`, `.git`, `.venv` 등
+- 시스템 캐시 및 빌드 디렉토리
 
-If you encounter issues:
-1. Check the [troubleshooting section](#troubleshooting)
-2. Verify your Claude Desktop configuration
-3. Test server status: https://fast-filesystem-mcp.vercel.app/api/server
-4. Open an issue on GitHub with error details
+## 개발
+
+```bash
+npm run dev    # 개발 모드
+npm run build  # 빌드
+npm run start  # 실행
+```
+
+## 라이선스
+
+MIT
