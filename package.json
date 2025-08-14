@@ -1,15 +1,19 @@
 {
-  "name": "mcp-on-vercel",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "fast-filesystem-mcp",
+  "version": "2.1.0",
+  "description": "Fast Filesystem MCP Server - Advanced file operations for Claude Desktop with Claude-optimized chunking, pagination, and comprehensive directory operations",
+  "main": "api/server.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vercel dev",
+    "build": "tsc",
+    "start": "node api/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "vercel --prod"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["mcp", "filesystem", "claude", "vercel", "ai", "typescript"],
+  "author": "efforthye",
+  "license": "MIT",
   "packageManager": "pnpm@9.4.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.2",
@@ -18,6 +22,11 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10"
+    "@types/node": "^22.13.10",
+    "typescript": "^5.6.3",
+    "vercel": "^40.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

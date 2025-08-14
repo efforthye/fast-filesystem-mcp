@@ -1,8 +1,23 @@
 {
-  "rewrites": [{ "source": "/(.+)", "destination": "/api/server" }],
+  "buildCommand": "echo 'API functions built automatically'",
   "functions": {
     "api/server.ts": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "runtime": "nodejs20.x"
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/", "destination": "/api/server" },
+    { "source": "/(.*)", "destination": "/api/server" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+      ]
+    }
+  ]
 }
