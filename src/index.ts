@@ -100,97 +100,11 @@ function truncateContent(content: string, maxSize: number = CLAUDE_MAX_RESPONSE_
   };
 }
 
-// 대용량 파일 작성을 위한 유틸리티 함수들
-async function writeFileWithRetry(
-  filePath: string, 
-  content: string, 
-  encoding: BufferEncoding, 
-  chunkSize: number,
-  maxRetries: number,
-  append: boolean
-): Promise<{retryCount: number; totalTime: number}> {
-  let retryCount = 0;
-  const startTime = Date.now();
-  
-  while (retryCount <= maxRetries) {
-    try {
-      await writeFileStreaming(filePath, content, encoding, chunkSize, append);
-      return { retryCount, totalTime: Date.now() - startTime };
-    } catch (error) {
-      retryCount++;
-      if (retryCount > maxRetries) {
-        throw error;
-      }
-      
-      const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  
-  throw new Error('Max retry attempts exceeded');
-}
-
-async function writeFileStreaming(
-  filePath: string, 
-  content: string, 
-  encoding: BufferEncoding, 
-  chunkSize: number,
-  append: boolean
-): Promise<void> {
-  const buffer = Buffer.from(content, encoding);
-  const fileHandle = await fs.open(filePath, append ? 'a' : 'w');
-  
-  try {
-    let position = 0;
-    while (position < buffer.length) {
-      const end = Math.min(position + chunkSize, buffer.length);
-      const chunk = buffer.subarray(position, end);
-      
-      await fileHandle.write(chunk);
-      position = end;
-      
-      // 메모리 압박 방지를 위한 이벤트 루프 양보
-      if (position % (chunkSize * 10) === 0) {
-        await new Promise(resolve => setImmediate(resolve));
-      }
-    }
-    
-    await fileHandle.sync(); // 디스크에 강제 동기화
-  } finally {
-    await fileHandle.close();
-  }
-}
-
-async function checkDiskSpace(dirPath: string, requiredBytes: number): Promise<void> {
-  try {
-    const { stdout } = await execAsync(`df -B1 "${dirPath}" | tail -1 | awk '{print $4}'`);
-    const availableBytes = parseInt(stdout.trim());
-    
-    if (availableBytes < requiredBytes * 1.5) {
-      throw new Error(
-        `Insufficient disk space. Required: ${formatSize(requiredBytes)}, ` +
-        `Available: ${formatSize(availableBytes)}`
-      );
-    }
-  } catch (error) {
-    console.warn('Could not check disk space:', error);
-  }
-}
-
-async function getOriginalFileSize(filePath: string): Promise<number> {
-  try {
-    const stats = await fs.stat(filePath);
-    return stats.size;
-  } catch {
-    return 0;
-  }
-}
-
 // MCP 서버 생성
 const server = new Server(
   {
     name: 'fast-filesystem',
-    version: '2.3.0',
+    version: '2.1.8',
   },
   {
     capabilities: {
@@ -239,25 +153,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             encoding: { type: 'string', description: '텍스트 인코딩', default: 'utf-8' },
             create_dirs: { type: 'boolean', description: '디렉토리 자동 생성', default: true },
             append: { type: 'boolean', description: '추가 모드', default: false }
-          },
-          required: ['path', 'content']
-        }
-      },
-      {
-        name: 'fast_large_write_file',
-        description: '대용량 파일을 안정적으로 작성합니다 (스트리밍, 재시도, 백업, 검증 기능)',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: { type: 'string', description: '파일 경로' },
-            content: { type: 'string', description: '파일 내용' },
-            encoding: { type: 'string', description: '텍스트 인코딩', default: 'utf-8' },
-            create_dirs: { type: 'boolean', description: '디렉토리 자동 생성', default: true },
-            append: { type: 'boolean', description: '추가 모드', default: false },
-            chunk_size: { type: 'number', description: '청크 크기 (바이트)', default: 65536 },
-            backup: { type: 'boolean', description: '기존 파일 백업 생성', default: true },
-            retry_attempts: { type: 'number', description: '재시도 횟수', default: 3 },
-            verify_write: { type: 'boolean', description: '작성 후 검증', default: true }
           },
           required: ['path', 'content']
         }
@@ -375,9 +270,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'fast_write_file':
         result = await handleWriteFile(args);
         break;
-      case 'fast_large_write_file':
-        result = await handleLargeWriteFile(args);
-        break;
       case 'fast_list_directory':
         result = await handleListDirectory(args);
         break;
@@ -428,7 +320,7 @@ async function handleListAllowedDirectories() {
     },
     server_info: {
       name: 'fast-filesystem',
-      version: '2.3.0',
+      version: '2.1.8',
       timestamp: new Date().toISOString()
     }
   };
@@ -525,128 +417,6 @@ async function handleWriteFile(args: any) {
     mode: append ? 'append' : 'write',
     timestamp: new Date().toISOString()
   };
-}
-
-// 새로운 대용량 파일 작성 핸들러
-async function handleLargeWriteFile(args: any) {
-  const { 
-    path: filePath, 
-    content, 
-    encoding = 'utf-8', 
-    create_dirs = true, 
-    append = false,
-    chunk_size = 64 * 1024, // 64KB 청크
-    backup = true,
-    retry_attempts = 3,
-    verify_write = true 
-  } = args;
-  
-  let targetPath: string;
-  if (path.isAbsolute(filePath)) {
-    targetPath = filePath;
-  } else {
-    targetPath = path.join(process.cwd(), filePath);
-  }
-  
-  if (!isPathAllowed(targetPath)) {
-    throw new Error(`Access denied to path: ${targetPath}`);
-  }
-  
-  const resolvedPath = path.resolve(targetPath);
-  const tempPath = `${resolvedPath}.tmp.${Date.now()}`;
-  const backupPath = `${resolvedPath}.backup.${Date.now()}`;
-  
-  try {
-    // 1. 디렉토리 생성
-    if (create_dirs) {
-      const dir = path.dirname(resolvedPath);
-      await fs.mkdir(dir, { recursive: true });
-    }
-    
-    // 2. 디스크 공간 확인
-    const contentSize = Buffer.byteLength(content, encoding as BufferEncoding);
-    await checkDiskSpace(path.dirname(resolvedPath), contentSize);
-    
-    // 3. 기존 파일 백업 (덮어쓰기 모드이고 파일이 존재할 경우)
-    let originalExists = false;
-    let originalSize = 0;
-    if (!append && backup) {
-      try {
-        await fs.access(resolvedPath);
-        originalExists = true;
-        originalSize = await getOriginalFileSize(resolvedPath);
-        await fs.copyFile(resolvedPath, backupPath);
-      } catch {
-        // 원본 파일이 없으면 무시
-      }
-    }
-    
-    // 4. 스트리밍 방식으로 대용량 파일 작성
-    const result = await writeFileWithRetry(
-      append ? resolvedPath : tempPath,
-      content,
-      encoding as BufferEncoding,
-      chunk_size,
-      retry_attempts,
-      append
-    );
-    
-    // 5. 원자적 이동 (append가 아닌 경우)
-    if (!append) {
-      await fs.rename(tempPath, resolvedPath);
-    }
-    
-    // 6. 작성 검증 (옵션)
-    if (verify_write) {
-      const finalStats = await fs.stat(resolvedPath);
-      const expectedSize = contentSize + (append ? originalSize : 0);
-      if (finalStats.size !== expectedSize) {
-        throw new Error(`File size verification failed. Expected: ${expectedSize}, Actual: ${finalStats.size}`);
-      }
-    }
-    
-    const finalStats = await fs.stat(resolvedPath);
-    
-    return {
-      message: `Large file ${append ? 'appended' : 'written'} successfully`,
-      path: resolvedPath,
-      size: finalStats.size,
-      size_readable: formatSize(finalStats.size),
-      content_size: contentSize,
-      content_size_readable: formatSize(contentSize),
-      encoding: encoding,
-      mode: append ? 'append' : 'write',
-      chunks_written: Math.ceil(contentSize / chunk_size),
-      chunk_size: chunk_size,
-      retry_count: result.retryCount,
-      backup_created: originalExists && backup ? backupPath : null,
-      timestamp: new Date().toISOString(),
-      performance: {
-        total_time_ms: result.totalTime,
-        write_speed_mbps: (contentSize / (1024 * 1024)) / (result.totalTime / 1000)
-      }
-    };
-    
-  } catch (error) {
-    // 에러 복구
-    try {
-      // 임시 파일 정리
-      await fs.unlink(tempPath).catch(() => {});
-      
-      // 백업에서 복구 (실패한 경우)
-      if (!append && backup && originalExists) {
-        try {
-          await fs.copyFile(backupPath, resolvedPath);
-        } catch {
-          // 복구도 실패
-        }
-      }
-    } catch {
-      // 정리 실패는 무시
-    }
-    
-    throw error;
-  }
 }
 
 async function handleListDirectory(args: any) {
