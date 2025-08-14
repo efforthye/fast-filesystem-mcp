@@ -2,7 +2,7 @@
 A high-performance Model Context Protocol (MCP) server that provides secure filesystem access for Claude and other AI assistants. Built with TypeScript and optimized for Claude's token limits and performance requirements. Also, This project is based on the vercel-labs/mcp-on-vercel template.
 
 ## Live Demo
-- Production Deployment: https://fast-filesystem-bwflvhs5a-efforthyes-projects.vercel.app/api/server
+- Production Deployment: https://fast.filesystem.mayo.im/api/server
 - GitHub Repository: https://github.com/efforthye/fast-filesystem-mcp
 
 ## Quick Setup
@@ -14,7 +14,7 @@ A high-performance Model Context Protocol (MCP) server that provides secure file
       "command": "npx",
       "args": [
         "@modelcontextprotocol/server-fetch",
-        "https://fast-filesystem-bwflvhs5a-efforthyes-projects.vercel.app/api/server"
+        "https://fast.filesystem.mayo.im/api/server"
       ]
     }
   }
@@ -30,7 +30,7 @@ A high-performance Model Context Protocol (MCP) server that provides secure file
       "command": "npx",
       "args": [
         "@modelcontextprotocol/server-fetch",
-        "https://fast-filesystem-bwflvhs5a-efforthyes-projects.vercel.app/api/server",
+        "https://fast.filesystem.mayo.im/api/server",
         "/Users/username/Documents",
         "/Users/username/projects"
       ]
