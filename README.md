@@ -47,11 +47,16 @@ A powerful, Claude-optimized file system MCP (Model Context Protocol) server tha
       "args": [
         "@modelcontextprotocol/server-fetch",
         "https://fast-filesystem-e2oo1zkp1-efforthyes-projects.vercel.app/api/server"
-      ]
+      ],
+      "env": {
+        "ALLOWED_DIRECTORIES": "/home/username,/Users/username,/path/to/your/projects"
+      }
     }
   }
 }
 ```
+
+**💡 Important**: Replace the paths in `ALLOWED_DIRECTORIES` with your actual directories you want Claude to access (comma-separated).
 
 2. **Restart Claude Desktop** and start using file system commands!
 
@@ -334,11 +339,10 @@ fast-filesystem-mcp/
 - **Documentation**: Check README and inline code comments
 - **Community**: Join discussions in GitHub Discussions
 
-## Live Demo Status
+## Live Demo
 
-✅ **Production Deployment**: https://fast-filesystem-e2oo1zkp1-efforthyes-projects.vercel.app/api/server  
-✅ **GitHub Repository**: https://github.com/efforthye/fast-filesystem-mcp  
-✅ **Ready for Claude Desktop Integration**  
+**Production URL**: https://fast-filesystem-e2oo1zkp1-efforthyes-projects.vercel.app/api/server  
+**GitHub Repository**: https://github.com/efforthye/fast-filesystem-mcp  
 
 ---
 
