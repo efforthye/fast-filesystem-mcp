@@ -35,72 +35,6 @@ const DEFAULT_EXCLUDE_PATTERNS = [
   '*.pyc', '*.pyo', '*.pyd', '.DS_Store', 'Thumbs.db'
 ];
 
-// 이모지 감지 함수 (제거하지 않고 경고만)
-function detectEmojis(text: string): { hasEmojis: boolean; count: number; positions: number[] } {
-  const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F004}]|[\u{1F0CF}]|[\u{1F170}-\u{1F251}]/gu;
-  
-  const matches = Array.from(text.matchAll(emojiRegex));
-  const positions = matches.map(match => match.index || 0);
-  
-  return {
-    hasEmojis: matches.length > 0,
-    count: matches.length,
-    positions: positions
-  };
-}
-
-// 이모지 제거 함수 (선택적)
-function removeEmojis(text: string): string {
-  const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F004}]|[\u{1F0CF}]|[\u{1F170}-\u{1F251}]/gu;
-  return text.replace(emojiRegex, '');
-}
-
-// 파일 타입별 이모지 가이드라인
-function getEmojiGuideline(filePath: string): { shouldAvoidEmojis: boolean; reason: string; fileType: string } {
-  const ext = path.extname(filePath).toLowerCase();
-  const fileName = path.basename(filePath).toLowerCase();
-  
-  // 코드 파일들
-  const codeExtensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.h', '.cs', '.php', '.rb', '.go', '.rs', '.swift', '.kt'];
-  
-  // 설정 파일들
-  const configExtensions = ['.json', '.yml', '.yaml', '.toml', '.ini', '.cfg', '.conf'];
-  const configFiles = ['package.json', 'tsconfig.json', 'webpack.config.js', 'dockerfile', 'makefile'];
-  
-  // 문서 파일들
-  const docExtensions = ['.md', '.txt', '.rst', '.adoc'];
-  
-  if (codeExtensions.includes(ext)) {
-    return {
-      shouldAvoidEmojis: true,
-      reason: 'Emojis not recommended in code files',
-      fileType: 'code'
-    };
-  }
-  
-  if (configExtensions.includes(ext) || configFiles.includes(fileName)) {
-    return {
-      shouldAvoidEmojis: true,
-      reason: 'Emojis not recommended in config files',
-      fileType: 'config'
-    };
-  }
-  
-  if (docExtensions.includes(ext)) {
-    return {
-      shouldAvoidEmojis: true,
-      reason: 'Emojis not recommended in files',
-      fileType: 'documentation'
-    };
-  }
-  
-  return {
-    shouldAvoidEmojis: true,
-    reason: 'Emojis not recommended in files',
-    fileType: 'general'
-  };
-}
-
 // 유틸리티 함수들
 function isPathAllowed(targetPath: string): boolean {
   const absolutePath = path.resolve(targetPath);
@@ -138,7 +72,7 @@ function shouldExcludePath(targetPath: string, excludePatterns: string[] = []): 
     const patternLower = pattern.toLowerCase();
     
     if (pattern.includes('*') || pattern.includes('?')) {
-      const regex = new RegExp(pattern.replace(/\\*/g, '.*').replace(/\\?/g, '.'));
+      const regex = new RegExp(pattern.replace(/\*/g, '.*').replace(/\?/g, '.'));
       return regex.test(pathName);
     }
     
@@ -256,7 +190,7 @@ async function getOriginalFileSize(filePath: string): Promise<number> {
 const server = new Server(
   {
     name: 'fast-filesystem',
-    version: '2.5.3',
+    version: '2.4.1',
   },
   {
     capabilities: {
@@ -296,7 +230,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'fast_write_file',
-        description: '파일을 쓰거나 수정합니다 (이모지 가이드라인 제공)',
+        description: '파일을 쓰거나 수정합니다',
         inputSchema: {
           type: 'object',
           properties: {
@@ -304,8 +238,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             content: { type: 'string', description: '파일 내용' },
             encoding: { type: 'string', description: '텍스트 인코딩', default: 'utf-8' },
             create_dirs: { type: 'boolean', description: '디렉토리 자동 생성', default: true },
-            append: { type: 'boolean', description: '추가 모드', default: false },
-            force_remove_emojis: { type: 'boolean', description: '이모지 강제 제거 (기본값: false)', default: false }
+            append: { type: 'boolean', description: '추가 모드', default: false }
           },
           required: ['path', 'content']
         }
@@ -324,8 +257,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             chunk_size: { type: 'number', description: '청크 크기 (바이트)', default: 65536 },
             backup: { type: 'boolean', description: '기존 파일 백업 생성', default: true },
             retry_attempts: { type: 'number', description: '재시도 횟수', default: 3 },
-            verify_write: { type: 'boolean', description: '작성 후 검증', default: true },
-            force_remove_emojis: { type: 'boolean', description: '이모지 강제 제거 (기본값: false)', default: false }
+            verify_write: { type: 'boolean', description: '작성 후 검증', default: true }
           },
           required: ['path', 'content']
         }
@@ -496,9 +428,7 @@ async function handleListAllowedDirectories() {
     },
     server_info: {
       name: 'fast-filesystem',
-      version: '2.5.3',
-      features: ['emoji-guidelines', 'large-file-writing', 'smart-recommendations'],
-      emoji_policy: 'Emojis not recommended in all file types',
+      version: '2.4.1',
       timestamp: new Date().toISOString()
     }
   };
@@ -558,7 +488,7 @@ async function handleReadFile(args: any) {
 }
 
 async function handleWriteFile(args: any) {
-  const { path: filePath, content, encoding = 'utf-8', create_dirs = true, append = false, force_remove_emojis = false } = args;
+  const { path: filePath, content, encoding = 'utf-8', create_dirs = true, append = false } = args;
   
   let targetPath: string;
   if (path.isAbsolute(filePath)) {
@@ -578,31 +508,15 @@ async function handleWriteFile(args: any) {
     await fs.mkdir(dir, { recursive: true });
   }
   
-  // 이모지 감지 및 가이드라인 제공
-  const emojiDetection = detectEmojis(content);
-  const guideline = getEmojiGuideline(resolvedPath);
-  
-  // 최종 내용 결정
-  let finalContent = content;
-  let emojiAction = 'none';
-  
-  if (force_remove_emojis) {
-    finalContent = removeEmojis(content);
-    emojiAction = 'force_removed';
-  } else if (emojiDetection.hasEmojis && guideline.shouldAvoidEmojis) {
-    // 권장사항 위반시 경고만 제공 (강제 제거 안함)
-    emojiAction = 'warning_provided';
-  }
-  
   if (append) {
-    await fs.appendFile(resolvedPath, finalContent, encoding as BufferEncoding);
+    await fs.appendFile(resolvedPath, content, encoding as BufferEncoding);
   } else {
-    await fs.writeFile(resolvedPath, finalContent, encoding as BufferEncoding);
+    await fs.writeFile(resolvedPath, content, encoding as BufferEncoding);
   }
   
   const stats = await fs.stat(resolvedPath);
   
-  const result: any = {
+  return {
     message: `File ${append ? 'appended' : 'written'} successfully`,
     path: resolvedPath,
     size: stats.size,
@@ -611,16 +525,6 @@ async function handleWriteFile(args: any) {
     mode: append ? 'append' : 'write',
     timestamp: new Date().toISOString()
   };
-  
-  // 이모지 관련 정보 추가 (간단하게)
-  if (emojiDetection.hasEmojis) {
-    result.emoji_info = {
-      detected: true,
-      guideline: guideline.reason
-    };
-  }
-  
-  return result;
 }
 
 // 새로운 대용량 파일 작성 핸들러
@@ -634,8 +538,7 @@ async function handleLargeWriteFile(args: any) {
     chunk_size = 64 * 1024, // 64KB 청크
     backup = true,
     retry_attempts = 3,
-    verify_write = true,
-    force_remove_emojis = false
+    verify_write = true 
   } = args;
   
   let targetPath: string;
@@ -654,20 +557,6 @@ async function handleLargeWriteFile(args: any) {
   const backupPath = `${resolvedPath}.backup.${Date.now()}`;
   
   try {
-    // 이모지 감지 및 처리
-    const emojiDetection = detectEmojis(content);
-    const guideline = getEmojiGuideline(resolvedPath);
-    
-    let finalContent = content;
-    let emojiAction = 'none';
-    
-    if (force_remove_emojis) {
-      finalContent = removeEmojis(content);
-      emojiAction = 'force_removed';
-    } else if (emojiDetection.hasEmojis && guideline.shouldAvoidEmojis) {
-      emojiAction = 'warning_provided';
-    }
-    
     // 1. 디렉토리 생성
     if (create_dirs) {
       const dir = path.dirname(resolvedPath);
@@ -675,7 +564,7 @@ async function handleLargeWriteFile(args: any) {
     }
     
     // 2. 디스크 공간 확인
-    const contentSize = Buffer.byteLength(finalContent, encoding as BufferEncoding);
+    const contentSize = Buffer.byteLength(content, encoding as BufferEncoding);
     await checkDiskSpace(path.dirname(resolvedPath), contentSize);
     
     // 3. 기존 파일 백업 (덮어쓰기 모드이고 파일이 존재할 경우)
@@ -695,7 +584,7 @@ async function handleLargeWriteFile(args: any) {
     // 4. 스트리밍 방식으로 대용량 파일 작성
     const result = await writeFileWithRetry(
       append ? resolvedPath : tempPath,
-      finalContent,
+      content,
       encoding as BufferEncoding,
       chunk_size,
       retry_attempts,
@@ -726,7 +615,7 @@ async function handleLargeWriteFile(args: any) {
     
     const finalStats = await fs.stat(resolvedPath);
     
-    const response: any = {
+    return {
       message: `Large file ${append ? 'appended' : 'written'} successfully`,
       path: resolvedPath,
       size: finalStats.size,
@@ -745,16 +634,6 @@ async function handleLargeWriteFile(args: any) {
         write_speed_mbps: (contentSize / (1024 * 1024)) / (result.totalTime / 1000)
       }
     };
-    
-    // 이모지 관련 정보 추가 (간단하게)
-    if (emojiDetection.hasEmojis) {
-      response.emoji_info = {
-        detected: true,
-        guideline: guideline.reason
-      };
-    }
-    
-    return response;
     
   } catch (error) {
     // 에러 복구
@@ -890,8 +769,6 @@ async function handleGetFileInfo(args: any) {
   if (stats.isFile()) {
     (info as any).extension = path.extname(safePath_resolved);
     (info as any).mime_type = getMimeType(safePath_resolved);
-    
-    // 파일별 이모지 가이드라인 제거 (토큰 절약)
     
     if (stats.size > CLAUDE_MAX_CHUNK_SIZE) {
       (info as any).claude_guide = {
@@ -1225,7 +1102,7 @@ function getMimeType(filePath: string): string {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Fast Filesystem MCP Server v2.5.1 running on stdio (with smart emoji guidelines)');
+  console.error('Fast Filesystem MCP Server running on stdio');
 }
 
 main().catch((error) => {
