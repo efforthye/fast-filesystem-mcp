@@ -1,6 +1,20 @@
 # Fast Filesystem MCP
 Advanced filesystem operations for Claude Desktop with large file handling capabilities and Claude-optimized features.
 
+## Quick Start
+Add to your Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "fast-filesystem": {
+      "command": "npx",
+      "args": ["-y", "fast-filesystem-mcp"]
+    }
+  }
+}
+```
+
 ## Features
 ### Core File Operations
 - Fast File Reading/Writing: Optimized for Claude Desktop with chunking support
@@ -20,20 +34,6 @@ Advanced filesystem operations for Claude Desktop with large file handling capab
 - Memory Efficient: Streaming operations prevent memory overflow
 - Smart Exclusions: Automatically excludes system files and directories
 - Progress Tracking: Real-time progress monitoring for large operations
-
-## Configuration
-Add to your Claude Desktop config:
-
-```json
-{
-  "mcpServers": {
-    "fast-filesystem": {
-      "command": "npx",
-      "args": ["-y", "fast-filesystem-mcp"]
-    }
-  }
-}
-```
 
 ## Available Tools
 
