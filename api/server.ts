@@ -11,10 +11,32 @@ const CLAUDE_MAX_CHUNK_SIZE = 2 * 1024 * 1024;    // 2MB
 const CLAUDE_MAX_LINES = 2000;                     // 최대 2000줄
 const CLAUDE_MAX_DIR_ITEMS = 1000;                 // 디렉토리 항목 최대 1000개
 
-// 허용된 디렉토리 설정 (환경변수 또는 기본값)
-const ALLOWED_DIRECTORIES = process.env.ALLOWED_DIRECTORIES 
-  ? process.env.ALLOWED_DIRECTORIES.split(',').map(dir => dir.trim())
-  : [process.env.HOME || '/tmp']; // 기본값으로 홈 디렉토리
+// 클라이언트에서 전달받은 허용 디렉토리를 저장할 변수
+let CLIENT_ALLOWED_DIRECTORIES: string[] = [];
+
+// 허용된 디렉토리 설정 함수
+function initializeAllowedDirectories(clientPaths?: string[]): string[] {
+  if (clientPaths && clientPaths.length > 0) {
+    // 클라이언트에서 전달한 경로들 사용
+    CLIENT_ALLOWED_DIRECTORIES = clientPaths.map(dir => dir.trim()).filter(dir => dir.length > 0);
+    return CLIENT_ALLOWED_DIRECTORIES;
+  }
+  
+  // 환경변수 또는 기본값 사용
+  const envPaths = process.env.ALLOWED_DIRECTORIES 
+    ? process.env.ALLOWED_DIRECTORIES.split(',').map(dir => dir.trim())
+    : [process.env.HOME || '/tmp'];
+    
+  CLIENT_ALLOWED_DIRECTORIES = envPaths;
+  return CLIENT_ALLOWED_DIRECTORIES;
+}
+
+// 허용된 디렉토리 목록 반환
+function getAllowedDirectories(): string[] {
+  return CLIENT_ALLOWED_DIRECTORIES.length > 0 
+    ? CLIENT_ALLOWED_DIRECTORIES 
+    : [process.env.HOME || '/tmp'];
+}
 
 // 제외 패턴 (보안 및 성능)
 const DEFAULT_EXCLUDE_PATTERNS = [
@@ -27,7 +49,8 @@ const DEFAULT_EXCLUDE_PATTERNS = [
 // 유틸리티 함수들
 function isPathAllowed(targetPath: string): boolean {
   const absolutePath = path.resolve(targetPath);
-  return ALLOWED_DIRECTORIES.some(allowedDir => 
+  const allowedDirs = getAllowedDirectories();
+  return allowedDirs.some(allowedDir => 
     absolutePath.startsWith(path.resolve(allowedDir))
   );
 }
@@ -73,7 +96,58 @@ function truncateContent(content: string, maxSize: number = CLAUDE_MAX_RESPONSE_
 }
 
 // MCP 핸들러 생성
-const handler = createMcpHandler((server) => {
+const handler = createMcpHandler((server, request) => {
+  
+  // URL에서 클라이언트 경로 추출 (server-fetch의 추가 args가 쿼리로 전달됨)
+  let clientPaths: string[] = [];
+  
+  try {
+    if (request) {
+      const url = new URL(request.url);
+      
+      // server-fetch의 추가 args들이 path0, path1, path2... 쿼리 파라미터로 전달됨
+      let pathIndex = 0;
+      while (true) {
+        const pathParam = url.searchParams.get(`path${pathIndex}`);
+        if (!pathParam) break;
+        
+        const decodedPath = decodeURIComponent(pathParam.trim());
+        if (decodedPath && decodedPath !== '') {
+          clientPaths.push(decodedPath);
+        }
+        pathIndex++;
+      }
+      
+      // 또는 paths 파라미터로 쉼표 구분된 경로들
+      const pathsParam = url.searchParams.get('paths');
+      if (pathsParam && clientPaths.length === 0) {
+        clientPaths = pathsParam.split(',').map(p => decodeURIComponent(p.trim()));
+      }
+    }
+  } catch (error) {
+    console.log('Failed to parse client paths from URL:', error);
+  }
+  
+  // 클라이언트에서 전달받은 경로로 허용 디렉토리 초기화
+  // 경로가 제공되지 않으면 전체 시스템 접근 허용 (보안상 기본 경로들만)
+  if (clientPaths.length > 0) {
+    initializeAllowedDirectories(clientPaths);
+    console.log('Using client-specified paths:', clientPaths);
+  } else {
+    // 기본 전체 접근 경로들 (안전한 기본값들)
+    const defaultPaths = [
+      process.env.HOME || '/home',
+      '/tmp',
+      '/Users', 
+      '/home',
+      process.cwd()
+    ].filter(p => p); // undefined 제거
+    
+    initializeAllowedDirectories(defaultPaths);
+    console.log('Using default full access paths:', defaultPaths);
+  }
+  
+  console.log('Final allowed directories:', getAllowedDirectories());
   
   // 허용된 디렉토리 목록 조회
   server.tool(
@@ -83,7 +157,7 @@ const handler = createMcpHandler((server) => {
       content: [{ 
         type: "text", 
         text: JSON.stringify({
-          allowed_directories: ALLOWED_DIRECTORIES,
+          allowed_directories: getAllowedDirectories(),
           current_working_directory: process.cwd(),
           claude_limits: {
             max_response_size_mb: CLAUDE_MAX_RESPONSE_SIZE / (1024**2),
