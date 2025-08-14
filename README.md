@@ -14,10 +14,9 @@ A high-performance filesystem MCP server that provides advanced file operations 
 
 ## Quick Setup
 
-No installation required! Just add this to your Claude Desktop configuration:
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\\Claude\\claude_desktop_config.json`
+No installation required! Just add this to your Claude Desktop configuration
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\\Claude\\claude_desktop_config.json`
 
 ```json
 {
