@@ -536,23 +536,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['path']
         }
       },
-      {
-        name: 'fast_search_and_replace',
-        description: '파일에서 텍스트를 검색하고 일괄 치환합니다',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: { type: 'string', description: '파일 경로' },
-            search_pattern: { type: 'string', description: '검색할 패턴' },
-            replace_text: { type: 'string', description: '치환할 텍스트' },
-            use_regex: { type: 'boolean', description: '정규식 사용', default: false },
-            case_sensitive: { type: 'boolean', description: '대소문자 구분', default: true },
-            max_replacements: { type: 'number', description: '최대 치환 횟수', default: -1 },
-            backup: { type: 'boolean', description: '백업 생성', default: true }
-          },
-          required: ['path', 'search_pattern', 'replace_text']
-        }
-      }
     ],
   };
 });
@@ -613,9 +596,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'fast_extract_lines':
         result = await handleExtractLines(args);
         break;
-      case 'fast_search_and_replace':
-        result = await handleSearchAndReplace(args);
-        break;
+
       default:
         throw new Error(`Tool not implemented: ${name}`);
     }
@@ -645,7 +626,7 @@ async function handleListAllowedDirectories() {
     },
     server_info: {
       name: 'fast-filesystem',
-      version: '2.8.0',
+      version: '2.8.1',
       features: ['emoji-guidelines', 'large-file-writing', 'smart-recommendations', 'configurable-backup'],
       emoji_policy: 'Emojis not recommended in all file types',
       backup_enabled: CREATE_BACKUP_FILES,
@@ -1867,107 +1848,7 @@ async function handleExtractLines(args: any) {
   };
 }
 
-async function handleSearchAndReplace(args: any) {
-  const { 
-    path: filePath, 
-    search_pattern, 
-    replace_text, 
-    use_regex = false, 
-    case_sensitive = true, 
-    max_replacements = -1, 
-    backup = true 
-  } = args;
-  
-  const safePath_resolved = safePath(filePath);
-  const content = await fs.readFile(safePath_resolved, 'utf-8');
-  
-  const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
-  
-  // 백업 생성 (설정에 따라)
-  if (backup && CREATE_BACKUP_FILES) {
-    await fs.copyFile(safePath_resolved, backupPath!);
-  }
-  
-  try {
-    let newContent: string;
-    let replacementCount = 0;
-    
-    if (use_regex) {
-      const flags = case_sensitive ? 'g' : 'gi';
-      const regex = new RegExp(search_pattern, flags);
-      
-      if (max_replacements > 0) {
-        // 제한된 횟수만 치환
-        let count = 0;
-        newContent = content.replace(regex, (match) => {
-          if (count < max_replacements) {
-            count++;
-            replacementCount++;
-            return replace_text;
-          }
-          return match;
-        });
-      } else {
-        // 모든 매칭 치환
-        newContent = content.replace(regex, () => {
-          replacementCount++;
-          return replace_text;
-        });
-      }
-    } else {
-      // 단순 문자열 치환
-      const searchStr = case_sensitive ? search_pattern : search_pattern.toLowerCase();
-      const contentToSearch = case_sensitive ? content : content.toLowerCase();
-      
-      newContent = content;
-      let lastIndex = 0;
-      let currentIndex = contentToSearch.indexOf(searchStr, lastIndex);
-      
-      while (currentIndex !== -1 && (max_replacements === -1 || replacementCount < max_replacements)) {
-        newContent = newContent.substring(0, currentIndex) + 
-                    replace_text + 
-                    newContent.substring(currentIndex + search_pattern.length);
-        
-        replacementCount++;
-        lastIndex = currentIndex + replace_text.length;
-        
-        // 다음 매칭 위치 찾기
-        const adjustedContent = case_sensitive ? newContent : newContent.toLowerCase();
-        currentIndex = adjustedContent.indexOf(searchStr, lastIndex);
-      }
-    }
-    
-    await fs.writeFile(safePath_resolved, newContent, 'utf-8');
-    
-    const stats = await fs.stat(safePath_resolved);
-    
-    return {
-      message: `Search and replace completed`,
-      path: safePath_resolved,
-      search_pattern: search_pattern,
-      replace_text: replace_text,
-      replacements_made: replacementCount,
-      use_regex: use_regex,
-      case_sensitive: case_sensitive,
-      backup_created: backupPath,
-      backup_enabled: CREATE_BACKUP_FILES,
-      size: stats.size,
-      size_readable: formatSize(stats.size),
-      timestamp: new Date().toISOString()
-    };
-    
-  } catch (error) {
-    // 에러 시 백업에서 복구
-    if (backup && CREATE_BACKUP_FILES && backupPath) {
-      try {
-        await fs.copyFile(backupPath, safePath_resolved);
-      } catch {
-        // 복구 실패
-      }
-    }
-    throw error;
-  }
-}
+
 
 // 여러개의 정교한 블록 편집을 한 번에 처리하는 핸들러
 async function handleEditBlocks(args: any) {
