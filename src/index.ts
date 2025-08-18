@@ -27,6 +27,9 @@ const DEFAULT_ALLOWED_DIRECTORIES = [
   '/home'
 ];
 
+// 백업 파일 설정 (환경변수나 설정으로 제어)
+const CREATE_BACKUP_FILES = process.env.CREATE_BACKUP_FILES === 'true'; // 기본값: false, true로 설정시만 활성화
+
 // 기본 제외 패턴 (보안 및 성능)
 const DEFAULT_EXCLUDE_PATTERNS = [
   '.venv', 'venv', 'node_modules', '.git', '.svn', '.hg',
@@ -256,7 +259,7 @@ async function getOriginalFileSize(filePath: string): Promise<number> {
 const server = new Server(
   {
     name: 'fast-filesystem',
-    version: '2.5.3',
+    version: '2.7.0',
   },
   {
     capabilities: {
@@ -614,9 +617,11 @@ async function handleListAllowedDirectories() {
     },
     server_info: {
       name: 'fast-filesystem',
-      version: '2.5.3',
-      features: ['emoji-guidelines', 'large-file-writing', 'smart-recommendations'],
+      version: '2.7.0',
+      features: ['emoji-guidelines', 'large-file-writing', 'smart-recommendations', 'configurable-backup'],
       emoji_policy: 'Emojis not recommended in all file types',
+      backup_enabled: CREATE_BACKUP_FILES,
+      backup_env_var: 'MCP_CREATE_BACKUP_FILES',
       timestamp: new Date().toISOString()
     }
   };
@@ -734,6 +739,18 @@ async function handleWriteFile(args: any) {
   
   const resolvedPath = path.resolve(targetPath);
   
+  // 백업 생성 (설정에 따라)
+  let backupPath = null;
+  if (CREATE_BACKUP_FILES && !append) {
+    try {
+      await fs.access(resolvedPath);
+      backupPath = `${resolvedPath}.backup.${Date.now()}`;
+      await fs.copyFile(resolvedPath, backupPath);
+    } catch {
+      // 원본 파일이 없으면 백업 생성 안함
+    }
+  }
+  
   if (create_dirs) {
     const dir = path.dirname(resolvedPath);
     await fs.mkdir(dir, { recursive: true });
@@ -770,6 +787,8 @@ async function handleWriteFile(args: any) {
     size_readable: formatSize(stats.size),
     encoding: encoding,
     mode: append ? 'append' : 'write',
+    backup_created: backupPath,
+    backup_enabled: CREATE_BACKUP_FILES,
     timestamp: new Date().toISOString()
   };
   
@@ -839,10 +858,10 @@ async function handleLargeWriteFile(args: any) {
     const contentSize = Buffer.byteLength(finalContent, encoding as BufferEncoding);
     await checkDiskSpace(path.dirname(resolvedPath), contentSize);
     
-    // 3. 기존 파일 백업 (덮어쓰기 모드이고 파일이 존재할 경우)
+    // 3. 기존 파일 백업 (덮어쓰기 모드이고 파일이 존재하며 백업이 활성화된 경우)
     let originalExists = false;
     let originalSize = 0;
-    if (!append && backup) {
+    if (!append && backup && CREATE_BACKUP_FILES) {
       try {
         await fs.access(resolvedPath);
         originalExists = true;
@@ -899,7 +918,8 @@ async function handleLargeWriteFile(args: any) {
       chunks_written: Math.ceil(contentSize / chunk_size),
       chunk_size: chunk_size,
       retry_count: result.retryCount,
-      backup_created: originalExists && backup ? backupPath : null,
+      backup_created: originalExists && backup && CREATE_BACKUP_FILES ? backupPath : null,
+      backup_enabled: CREATE_BACKUP_FILES,
       timestamp: new Date().toISOString(),
       performance: {
         total_time_ms: result.totalTime,
@@ -924,7 +944,7 @@ async function handleLargeWriteFile(args: any) {
       await fs.unlink(tempPath).catch(() => {});
       
       // 백업에서 복구 (실패한 경우)
-      if (!append && backup) {
+      if (!append && backup && CREATE_BACKUP_FILES) {
         try {
           await fs.copyFile(backupPath, resolvedPath);
         } catch {
@@ -1386,7 +1406,7 @@ function getMimeType(filePath: string): string {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Fast Filesystem MCP Server v2.5.3 running on stdio (with smart emoji guidelines and editing tools)');
+  console.error('Fast Filesystem MCP Server v2.7.0 running on stdio (with configurable backup feature)');
 }
 
 // RegExp escape 함수
@@ -1427,10 +1447,10 @@ async function handleEditFile(args: any) {
   let modifiedContent = content;
   const changes: any[] = [];
   let totalChanges = 0;
-  const backupPath = backup ? `${safePath_resolved}.backup.${Date.now()}` : null;
+  const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
   
-  // 백업 생성
-  if (fileExists && backup) {
+  // 백업 생성 (설정에 따라)
+  if (fileExists && backup && CREATE_BACKUP_FILES) {
     await fs.copyFile(safePath_resolved, backupPath!);
   }
   
@@ -1500,6 +1520,7 @@ async function handleEditFile(args: any) {
       original_lines: originalLines,
       new_lines: newLines,
       backup_created: backupPath,
+      backup_enabled: CREATE_BACKUP_FILES,
       size: stats.size,
       size_readable: formatSize(stats.size),
       timestamp: new Date().toISOString()
@@ -1507,7 +1528,7 @@ async function handleEditFile(args: any) {
     
   } catch (error) {
     // 에러 시 백업에서 복구 (단, 파일 쓰기 관련 에러만)
-    if (fileExists && backup && backupPath && error instanceof Error && 
+    if (fileExists && backup && CREATE_BACKUP_FILES && backupPath && error instanceof Error && 
         (error.message.includes('EACCES') || error.message.includes('EPERM') || 
          error.message.includes('ENOENT') || error.message.includes('write'))) {
       try {
@@ -1542,10 +1563,10 @@ async function handleEditBlock(args: any) {
   }
   
   const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
-  const backupPath = backup ? `${safePath_resolved}.backup.${Date.now()}` : null;
+  const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
   
-  // 백업 생성
-  if (backup) {
+  // 백업 생성 (설정에 따라)
+  if (backup && CREATE_BACKUP_FILES) {
     await fs.copyFile(safePath_resolved, backupPath!);
   }
   
@@ -1562,6 +1583,7 @@ async function handleEditBlock(args: any) {
         actual_occurrences: 0,
         status: 'not_found',
         backup_created: backupPath,
+        backup_enabled: CREATE_BACKUP_FILES,
         timestamp: new Date().toISOString()
       };
     }
@@ -1576,6 +1598,7 @@ async function handleEditBlock(args: any) {
         status: 'count_mismatch',
         safety_info: 'Use expected_replacements parameter to confirm the exact number of changes',
         backup_created: backupPath,
+        backup_enabled: CREATE_BACKUP_FILES,
         timestamp: new Date().toISOString()
       };
     }
@@ -1611,6 +1634,7 @@ async function handleEditBlock(args: any) {
       new_text_preview: new_text.length > 100 ? new_text.substring(0, 100) + '...' : new_text,
       status: 'success',
       backup_created: backupPath,
+      backup_enabled: CREATE_BACKUP_FILES,
       size: stats.size,
       size_readable: formatSize(stats.size),
       timestamp: new Date().toISOString()
@@ -1618,7 +1642,7 @@ async function handleEditBlock(args: any) {
     
   } catch (error) {
     // 에러 시 백업에서 복구
-    if (backup && backupPath) {
+    if (backup && CREATE_BACKUP_FILES && backupPath) {
       try {
         await fs.copyFile(backupPath, safePath_resolved);
       } catch {
@@ -1637,11 +1661,11 @@ async function handleEditMultipleBlocks(args: any) {
   const lines = content.split('\n');
   let modifiedLines = [...lines];
   
-  const backupPath = backup ? `${safePath_resolved}.backup.${Date.now()}` : null;
+  const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
   let totalChanges = 0;
   
-  // 백업 생성
-  if (backup) {
+  // 백업 생성 (설정에 따라)
+  if (backup && CREATE_BACKUP_FILES) {
     await fs.copyFile(safePath_resolved, backupPath!);
   }
   
@@ -1723,6 +1747,7 @@ async function handleEditMultipleBlocks(args: any) {
       original_lines: lines.length,
       new_lines: modifiedLines.length,
       backup_created: backupPath,
+      backup_enabled: CREATE_BACKUP_FILES,
       size: stats.size,
       size_readable: formatSize(stats.size),
       timestamp: new Date().toISOString()
@@ -1730,7 +1755,7 @@ async function handleEditMultipleBlocks(args: any) {
     
   } catch (error) {
     // 에러 시 백업에서 복구
-    if (backup && backupPath) {
+    if (backup && CREATE_BACKUP_FILES && backupPath) {
       try {
         await fs.copyFile(backupPath, safePath_resolved);
       } catch {
@@ -1828,10 +1853,10 @@ async function handleSearchAndReplace(args: any) {
   const safePath_resolved = safePath(filePath);
   const content = await fs.readFile(safePath_resolved, 'utf-8');
   
-  const backupPath = backup ? `${safePath_resolved}.backup.${Date.now()}` : null;
+  const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
   
-  // 백업 생성
-  if (backup) {
+  // 백업 생성 (설정에 따라)
+  if (backup && CREATE_BACKUP_FILES) {
     await fs.copyFile(safePath_resolved, backupPath!);
   }
   
@@ -1897,6 +1922,7 @@ async function handleSearchAndReplace(args: any) {
       use_regex: use_regex,
       case_sensitive: case_sensitive,
       backup_created: backupPath,
+      backup_enabled: CREATE_BACKUP_FILES,
       size: stats.size,
       size_readable: formatSize(stats.size),
       timestamp: new Date().toISOString()
@@ -1904,7 +1930,7 @@ async function handleSearchAndReplace(args: any) {
     
   } catch (error) {
     // 에러 시 백업에서 복구
-    if (backup && backupPath) {
+    if (backup && CREATE_BACKUP_FILES && backupPath) {
       try {
         await fs.copyFile(backupPath, safePath_resolved);
       } catch {

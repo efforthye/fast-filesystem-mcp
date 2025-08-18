@@ -1,5 +1,38 @@
 # Fast Filesystem MCP Changelog
 
+## v2.7.0 - Configurable Backup System
+
+### New Features
+- **Configurable Backup System**: Control backup file creation via `CREATE_BACKUP_FILES` environment variable
+- **Backup Control**: Set `CREATE_BACKUP_FILES=true` to enable backup file creation (default: false to reduce clutter)
+- **Smart Backup Management**: Backup files only created when necessary and when enabled
+
+### Configuration
+```json
+{
+  "mcpServers": {
+    "fast-filesystem": {
+      "command": "npx",
+      "args": ["-y", "fast-filesystem-mcp"],
+      "env": {
+        "CREATE_BACKUP_FILES": "false"
+      }
+    }
+  }
+}
+```
+
+### Key Changes
+- All editing functions now respect the `ENABLE_BACKUP` setting
+- Backup status included in response information
+- Default behavior: backups enabled (set to `false` to disable)
+- Enhanced server info includes backup configuration status
+
+### Performance Improvements
+- Reduced file system clutter when backups disabled
+- Faster operations when backup creation is skipped
+- Maintained data safety with configurable backup options
+
 ## v2.5.3 - Token Optimization and Large File Focus
 
 ### Token Usage Optimization

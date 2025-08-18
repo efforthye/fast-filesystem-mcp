@@ -8,11 +8,21 @@ Add to your Claude Desktop config.
   "mcpServers": {
     "fast-filesystem": {
       "command": "npx",
-      "args": ["-y", "fast-filesystem-mcp"]
+      "args": ["-y", "fast-filesystem-mcp"],
+      "env": {
+        "CREATE_BACKUP_FILES": "false"
+      }
     }
   }
 }
 ```
+
+### Backup Configuration
+Control backup file creation behavior:
+- `CREATE_BACKUP_FILES=false` (default): Disables backup file creation to reduce clutter  
+- `CREATE_BACKUP_FILES=true`: Creates backup files before modifications
+
+**Note**: Backup files are created with timestamps (e.g., `file.txt.backup.1755485284402`) to prevent data loss during edits.
 
 ## Features
 ### Core File Operations
