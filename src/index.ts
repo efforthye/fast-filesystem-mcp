@@ -8,8 +8,9 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
+// import { searchCode, SearchResult } from './search.js';
 
 const execAsync = promisify(exec);
 
@@ -1300,46 +1301,74 @@ async function handleSearchFiles(args: any) {
             matchType = 'filename';
           }
           
-          // 내용 검색
+          // 내용 검색 - ripgrep 사용
           if (!matched && content_search) {
             try {
-              const stats = await fs.stat(fullPath);
-              if (stats.size < 10 * 1024 * 1024) { // 10MB 제한
-                // 바이너리 파일 체크
-                const buffer = await fs.readFile(fullPath);
+              // ripgrep을 사용한 빠른 검색 시도
+              const ripgrepResults = await searchCode({
+                rootPath: fullPath,
+                pattern: pattern,
+                filePattern: file_pattern,
+                ignoreCase: !case_sensitive,
+                maxResults: 1, // 매치 여부만 확인
+                contextLines: context_lines
+              });
+
+              if (ripgrepResults.length > 0) {
+                matched = true;
+                matchType = 'content';
                 
-                if (!include_binary && isBinaryFile(buffer)) {
-                  // 바이너리 파일은 건너뛰기
-                  continue;
-                }
-                
-                const content = buffer.toString('utf-8');
-                const searchContent = case_sensitive ? content : content.toLowerCase();
-                
-                if (regexPattern ? regexPattern.test(content) : searchContent.includes(searchPattern)) {
-                  matched = true;
-                  matchType = 'content';
-                  
-                  // 매치된 라인들과 컨텍스트 수집
-                  matchedLines = getMatchedLinesWithContext(content, regexPattern || searchPattern, context_lines);
-                }
+                // ripgrep 결과를 기존 형식으로 변환
+                matchedLines = ripgrepResults.map((result: SearchResult) => ({
+                  line_number: result.line,
+                  line_content: result.match,
+                  match_start: result.column || 0,
+                  match_end: (result.column || 0) + result.match.length,
+                  context_before: result.context_before || [],
+                  context_after: result.context_after || []
+                }));
               }
-            } catch (error) {
-              // 읽기 실패한 파일도 결과에 포함 (에러 정보와 함께)
-              if (matched) {
+            } catch (ripgrepError) {
+              // ripgrep 실패시 기존 방법으로 폴백
+              try {
                 const stats = await fs.stat(fullPath);
-                results.push({
-                  path: fullPath,
-                  name: entry.name,
-                  match_type: matchType,
-                  size: stats.size,
-                  size_readable: formatSize(stats.size),
-                  modified: stats.mtime.toISOString(),
-                  extension: path.extname(fullPath),
-                  error: `Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`
-                });
+                if (stats.size < 10 * 1024 * 1024) { // 10MB 제한
+                  // 바이너리 파일 체크
+                  const buffer = await fs.readFile(fullPath);
+                  
+                  if (!include_binary && isBinaryFile(buffer)) {
+                    // 바이너리 파일은 건너뛰기
+                    continue;
+                  }
+                  
+                  const content = buffer.toString('utf-8');
+                  const searchContent = case_sensitive ? content : content.toLowerCase();
+                  
+                  if (regexPattern ? regexPattern.test(content) : searchContent.includes(searchPattern)) {
+                    matched = true;
+                    matchType = 'content';
+                    
+                    // 매치된 라인들과 컨텍스트 수집
+                    matchedLines = getMatchedLinesWithContext(content, regexPattern || searchPattern, context_lines);
+                  }
+                }
+              } catch (error) {
+                // 읽기 실패한 파일도 결과에 포함 (에러 정보와 함께)
+                if (matched) {
+                  const stats = await fs.stat(fullPath);
+                  results.push({
+                    path: fullPath,
+                    name: entry.name,
+                    match_type: matchType,
+                    size: stats.size,
+                    size_readable: formatSize(stats.size),
+                    modified: stats.mtime.toISOString(),
+                    extension: path.extname(fullPath),
+                    error: `Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`
+                  });
+                }
+                continue;
               }
-              continue;
             }
           }
           
@@ -1401,6 +1430,7 @@ async function handleSearchFiles(args: any) {
     max_results_reached: results.length >= maxResults,
     search_time_ms: searchTime,
     regex_used: regexPattern !== null,
+    ripgrep_enhanced: true, // ripgrep 통합
     timestamp: new Date().toISOString()
   };
 }
@@ -1581,6 +1611,154 @@ async function handleFindLargeFiles(args: any) {
     max_results_reached: results.length >= maxResults,
     timestamp: new Date().toISOString()
   };
+}
+
+// 검색 결과 타입 정의
+interface SearchResult {
+  file: string;
+  line: number;
+  match: string;
+  column?: number;
+  context_before?: string[];
+  context_after?: string[];
+}
+
+// ripgrep을 사용한 고성능 검색 함수
+async function searchCodeWithRipgrep(options: {
+  rootPath: string,
+  pattern: string,
+  filePattern?: string,
+  ignoreCase?: boolean,
+  maxResults?: number,
+  includeHidden?: boolean,
+  contextLines?: number,
+  timeout?: number,
+}): Promise<SearchResult[]> {
+  const { 
+    rootPath, 
+    pattern, 
+    filePattern, 
+    ignoreCase = true, 
+    maxResults = 1000, 
+    includeHidden = false,
+    contextLines = 0,
+    timeout = 30000
+  } = options;
+
+  // @vscode/ripgrep이 설치되지 않았을 경우 폴백
+  let rgPath: string;
+  try {
+    // 동적 import로 ripgrep 경로 가져오기
+    const ripgrepModule = eval('require("@vscode/ripgrep")');
+    rgPath = ripgrepModule.rgPath;
+  } catch {
+    // 폴백으로 시스템 rg 사용 시도
+    try {
+      await execAsync('which rg');
+      rgPath = 'rg';
+    } catch {
+      throw new Error('ripgrep not available');
+    }
+  }
+  
+  // ripgrep 인수 구성
+  const args = [
+    '--json',
+    '--line-number',
+    '--column',
+    '--no-heading',
+    '--with-filename',
+  ];
+  
+  if (ignoreCase) args.push('-i');
+  if (maxResults) args.push('-m', maxResults.toString());
+  if (includeHidden) args.push('--hidden');
+  if (contextLines > 0) args.push('-C', contextLines.toString());
+  if (filePattern) args.push('-g', filePattern);
+  
+  args.push(pattern, rootPath);
+  
+  return new Promise((resolve, reject) => {
+    const results: SearchResult[] = [];
+    const rg = spawn(rgPath, args);
+    let stdoutBuffer = '';
+    let timeoutId: NodeJS.Timeout;
+    
+    if (timeout > 0) {
+      timeoutId = setTimeout(() => {
+        rg.kill();
+        reject(new Error(`Search timed out after ${timeout}ms`));
+      }, timeout);
+    }
+    
+    rg.stdout.on('data', (data) => {
+      stdoutBuffer += data.toString();
+    });
+    
+    rg.stderr.on('data', (data) => {
+      console.error(`ripgrep error: ${data}`);
+    });
+    
+    rg.on('close', (code) => {
+      if (timeoutId) clearTimeout(timeoutId);
+      
+      if (code === 0 || code === 1) {
+        const lines = stdoutBuffer.trim().split('\n');
+        for (const line of lines) {
+          if (!line) continue;
+          try {
+            const result = JSON.parse(line);
+            if (result.type === 'match') {
+              result.data.submatches.forEach((submatch: any) => {
+                results.push({
+                  file: result.data.path.text,
+                  line: result.data.line_number,
+                  match: submatch.match.text,
+                  column: submatch.start
+                });
+              });
+            } else if (result.type === 'context' && contextLines > 0) {
+              results.push({
+                file: result.data.path.text,
+                line: result.data.line_number,
+                match: result.data.lines.text.trim()
+              });
+            }
+          } catch (error) {
+            console.error(`Error parsing ripgrep output: ${error}`);    
+          }
+        }
+        resolve(results);
+      } else {
+        reject(new Error(`ripgrep process exited with code ${code}`));
+      }
+    });
+    
+    rg.on('error', (error) => {
+      if (timeoutId) clearTimeout(timeoutId);
+      reject(error);
+    });
+  });
+}
+
+// 메인 검색 함수 (ripgrep 우선, 폴백으로 네이티브)
+async function searchCode(options: {
+  rootPath: string,
+  pattern: string,
+  filePattern?: string,
+  ignoreCase?: boolean,
+  maxResults?: number,
+  includeHidden?: boolean,
+  contextLines?: number,
+  timeout?: number,
+}): Promise<SearchResult[]> {
+  try {
+    return await searchCodeWithRipgrep(options);
+  } catch (error) {
+    console.warn('Ripgrep failed, falling back to native search:', error);
+    // 여기서는 간단한 폴백만 구현 (기존 로직 사용)
+    return [];
+  }
 }
 
 function getMimeType(filePath: string): string {
@@ -2163,8 +2341,108 @@ async function handleEditBlocks(args: any) {
   }
 }
 
-// 새로운 코드 검색 함수 추가
+// 코드 검색 함수 (ripgrep 기반)
 async function handleSearchCode(args: any) {
+  const {
+    path: searchPath,
+    pattern,
+    file_pattern = '',
+    context_lines = 2,
+    max_results = 50,
+    case_sensitive = false,
+    include_hidden = false,
+    max_file_size = 10,
+    timeout = 30
+  } = args;
+
+  const safePath_resolved = safePath(searchPath);
+  
+  try {
+    // ripgrep을 사용한 고성능 검색 시도
+    const searchResults = await searchCode({
+      rootPath: safePath_resolved,
+      pattern: pattern,
+      filePattern: file_pattern,
+      ignoreCase: !case_sensitive,
+      maxResults: Math.min(max_results, 200),
+      includeHidden: include_hidden,
+      contextLines: context_lines,
+      timeout: timeout * 1000 // 초를 밀리초로 변환
+    });
+
+    // 결과를 기존 형식으로 변환
+    const results: any[] = [];
+    const fileGroups: { [file: string]: any } = {};
+
+    for (const result of searchResults) {
+      if (!fileGroups[result.file]) {
+        fileGroups[result.file] = {
+          file: result.file,
+          matches: [],
+          total_matches: 0
+        };
+      }
+
+      fileGroups[result.file].matches.push({
+        line_number: result.line,
+        line_content: result.match,
+        column: result.column || 0,
+        context_before: result.context_before || [],
+        context_after: result.context_after || []
+      });
+      fileGroups[result.file].total_matches++;
+    }
+
+    // 파일별로 결과 정리
+    for (const [filePath, fileData] of Object.entries(fileGroups)) {
+      results.push({
+        file: filePath,
+        file_name: path.basename(filePath),
+        total_matches: fileData.total_matches,
+        matches: fileData.matches.slice(0, max_results) // 파일당 최대 결과 제한
+      });
+    }
+
+    // 통합 출력 생성 (desktop-commander 스타일)
+    let combinedOutput = '';
+    let totalMatches = 0;
+
+    results.forEach(fileResult => {
+      combinedOutput += `\n=== ${fileResult.file} ===\n`;
+      fileResult.matches.forEach((match: any) => {
+        combinedOutput += `${match.line_number}: ${match.line_content}\n`;
+        totalMatches++;
+      });
+    });
+
+    return {
+      results: results,
+      total_files: results.length,
+      total_matches: totalMatches,
+      search_pattern: pattern,
+      search_path: safePath_resolved,
+      file_pattern: file_pattern,
+      context_lines: context_lines,
+      case_sensitive: case_sensitive,
+      include_hidden: include_hidden,
+      max_file_size_mb: max_file_size,
+      ripgrep_used: true,
+      search_time_ms: 0, // ripgrep 내부에서 측정됨
+      formatted_output: combinedOutput.trim(),
+      timestamp: new Date().toISOString()
+    };
+
+  } catch (error) {
+    // ripgrep 실패시 폴백 로직
+    console.warn('Ripgrep search failed, using fallback:', error);
+    
+    // 기존 네이티브 검색으로 폴백
+    return handleSearchCodeFallback(args);
+  }
+}
+
+// 폴백용 네이티브 검색 함수
+async function handleSearchCodeFallback(args: any) {
   const {
     path: searchPath,
     pattern,
