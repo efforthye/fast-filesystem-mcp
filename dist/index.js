@@ -546,23 +546,59 @@ async function handleReadFile(args) {
         throw new Error('Path is not a file');
     }
     const maxReadSize = max_size ? Math.min(max_size, CLAUDE_MAX_CHUNK_SIZE) : CLAUDE_MAX_CHUNK_SIZE;
+    // 라인 모드 - Python 방식으로 스트리밍 읽기
     if (line_start !== undefined) {
         const linesToRead = line_count ? Math.min(line_count, CLAUDE_MAX_LINES) : CLAUDE_MAX_LINES;
-        const fileContent = await fs.readFile(safePath_resolved, encoding);
-        const lines = fileContent.split('\n');
-        const selectedLines = lines.slice(line_start, line_start + linesToRead);
+        const lines = [];
+        // 큰 파일은 스트리밍으로 처리
+        if (stats.size > 10 * 1024 * 1024) { // 10MB 이상
+            const fileHandle = await fs.open(safePath_resolved, 'r');
+            const stream = fileHandle.createReadStream({ encoding: encoding });
+            let currentLine = 0;
+            let buffer = '';
+            for await (const chunk of stream) {
+                buffer += chunk;
+                const chunkLines = buffer.split('\n');
+                buffer = chunkLines.pop() || ''; // 마지막 불완전한 라인은 보관
+                for (const line of chunkLines) {
+                    if (currentLine >= line_start && lines.length < linesToRead) {
+                        lines.push(line);
+                    }
+                    currentLine++;
+                    if (lines.length >= linesToRead) {
+                        break;
+                    }
+                }
+                if (lines.length >= linesToRead) {
+                    break;
+                }
+            }
+            // 버퍼에 남은 마지막 라인 처리
+            if (buffer && currentLine >= line_start && lines.length < linesToRead) {
+                lines.push(buffer);
+            }
+            await fileHandle.close();
+        }
+        else {
+            // 작은 파일은 기존 방식 (하지만 전체 라인 수는 세지 않음)
+            const fileContent = await fs.readFile(safePath_resolved, encoding);
+            const allLines = fileContent.split('\n');
+            const selectedLines = allLines.slice(line_start, line_start + linesToRead);
+            lines.push(...selectedLines);
+        }
         return {
-            content: selectedLines.join('\n'),
+            content: lines.join('\n'),
             mode: 'lines',
             start_line: line_start,
-            lines_read: selectedLines.length,
-            total_lines: lines.length,
+            lines_read: lines.length,
             file_size: stats.size,
             file_size_readable: formatSize(stats.size),
             encoding: encoding,
+            has_more: lines.length >= linesToRead, // 요청한 만큼 읽었다면 더 있을 가능성
             path: safePath_resolved
         };
     }
+    // 바이트 모드 - 기존 방식 유지
     const fileHandle = await fs.open(safePath_resolved, 'r');
     const buffer = Buffer.alloc(maxReadSize);
     const { bytesRead } = await fileHandle.read(buffer, 0, maxReadSize, start_offset);
