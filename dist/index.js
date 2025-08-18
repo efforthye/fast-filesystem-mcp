@@ -1123,7 +1123,7 @@ async function handleSearchFiles(args) {
                         matched = true;
                         matchType = 'filename';
                     }
-                    // 내용 검색 - ripgrep 사용 시도
+                    // 내용 검색 - ripgrep 사용
                     if (!matched && content_search) {
                         try {
                             // ripgrep을 사용한 빠른 검색 시도
@@ -1245,7 +1245,7 @@ async function handleSearchFiles(args) {
         max_results_reached: results.length >= maxResults,
         search_time_ms: searchTime,
         regex_used: regexPattern !== null,
-        ripgrep_enhanced: true, // 표시: ripgrep 통합 버전
+        ripgrep_enhanced: true, // ripgrep 통합
         timestamp: new Date().toISOString()
     };
 }
@@ -2019,7 +2019,7 @@ async function handleEditBlocks(args) {
         throw error;
     }
 }
-// 새로운 고성능 코드 검색 함수 (ripgrep 기반)
+// 코드 검색 함수 (ripgrep 기반)
 async function handleSearchCode(args) {
     const { path: searchPath, pattern, file_pattern = '', context_lines = 2, max_results = 50, case_sensitive = false, include_hidden = false, max_file_size = 10, timeout = 30 } = args;
     const safePath_resolved = safePath(searchPath);

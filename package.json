@@ -46,7 +46,8 @@
   },
   "packageManager": "pnpm@9.4.0",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.2"
+    "@modelcontextprotocol/sdk": "^1.17.2",
+    "@vscode/ripgrep": "^1.15.6"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
