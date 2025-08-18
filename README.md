@@ -3,6 +3,19 @@ Advanced filesystem operations for Claude Desktop with large file handling capab
 
 ## Quick Start
 Add to your Claude Desktop config.
+**Basic setup**
+```json
+{
+  "mcpServers": {
+    "fast-filesystem": {
+      "command": "npx",
+      "args": ["-y", "fast-filesystem-mcp"]
+    }
+  }
+}
+```
+
+**With backup files enabled:**
 ```json
 {
   "mcpServers": {
@@ -10,7 +23,7 @@ Add to your Claude Desktop config.
       "command": "npx",
       "args": ["-y", "fast-filesystem-mcp"],
       "env": {
-        "CREATE_BACKUP_FILES": "false"
+        "CREATE_BACKUP_FILES": "true"
       }
     }
   }
