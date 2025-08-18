@@ -375,15 +375,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'fast_search_files',
-        description: '파일을 검색합니다 (이름/내용)',
+        description: '파일을 검색합니다 (이름/내용) - 정규표현식, 컨텍스트, 라인번호 지원',
         inputSchema: {
           type: 'object',
           properties: {
             path: { type: 'string', description: '검색할 디렉토리' },
-            pattern: { type: 'string', description: '검색 패턴' },
+            pattern: { type: 'string', description: '검색 패턴 (정규표현식 지원)' },
             content_search: { type: 'boolean', description: '파일 내용 검색', default: false },
             case_sensitive: { type: 'boolean', description: '대소문자 구분', default: false },
-            max_results: { type: 'number', description: '최대 결과 수', default: 100 }
+            max_results: { type: 'number', description: '최대 결과 수', default: 100 },
+            context_lines: { type: 'number', description: '매치된 라인 주변 컨텍스트 라인 수', default: 0 },
+            file_pattern: { type: 'string', description: '파일명 필터 패턴 (*.js, *.txt 등)', default: '' },
+            include_binary: { type: 'boolean', description: '바이너리 파일 포함 여부', default: false }
+          },
+          required: ['path', 'pattern']
+        }
+      },
+      {
+        name: 'fast_search_code',
+        description: '코드 검색 (ripgrep 스타일) - 라인번호와 컨텍스트 제공',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: '검색할 디렉토리' },
+            pattern: { type: 'string', description: '검색 패턴 (정규표현식 지원)' },
+            file_pattern: { type: 'string', description: '파일 확장자 필터 (*.js, *.ts 등)', default: '' },
+            context_lines: { type: 'number', description: '매치 주변 컨텍스트 라인 수', default: 2 },
+            max_results: { type: 'number', description: '최대 결과 수', default: 50 },
+            case_sensitive: { type: 'boolean', description: '대소문자 구분', default: false },
+            include_hidden: { type: 'boolean', description: '숨김 파일 포함', default: false },
+            max_file_size: { type: 'number', description: '검색할 최대 파일 크기 (MB)', default: 10 }
           },
           required: ['path', 'pattern']
         }
@@ -571,6 +592,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case 'fast_search_files':
         result = await handleSearchFiles(args);
+        break;
+      case 'fast_search_code':
+        result = await handleSearchCode(args);
         break;
       case 'fast_get_directory_tree':
         result = await handleGetDirectoryTree(args);
@@ -1130,7 +1154,10 @@ async function handleSearchFiles(args: any) {
     pattern, 
     content_search = false, 
     case_sensitive = false, 
-    max_results = 100
+    max_results = 100,
+    context_lines = 0,  // 새로 추가: 컨텍스트 라인
+    file_pattern = '',  // 새로 추가: 파일 패턴 필터링
+    include_binary = false  // 새로 추가: 바이너리 파일 포함 여부
   } = args;
   
   const safePath_resolved = safePath(searchPath);
@@ -1139,6 +1166,112 @@ async function handleSearchFiles(args: any) {
   
   const searchPattern = case_sensitive ? pattern : pattern.toLowerCase();
   
+  // 정규표현식 패턴 지원
+  let regexPattern: RegExp | null = null;
+  try {
+    regexPattern = new RegExp(pattern, case_sensitive ? 'g' : 'gi');
+  } catch {
+    // 정규표현식이 아닌 경우 문자열 검색으로 처리
+  }
+  
+  // 파일 패턴 필터
+  let fileRegex: RegExp | null = null;
+  if (file_pattern) {
+    try {
+      // 와일드카드를 정규표현식으로 변환
+      const regexStr = file_pattern
+        .replace(/\./g, '\\.')
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.');
+      fileRegex = new RegExp(`^${regexStr}$`, 'i');
+    } catch {
+      // 정규표현식 변환 실패시 단순 문자열 포함 검사
+    }
+  }
+  
+  // 바이너리 파일 감지 함수
+  function isBinaryFile(buffer: Buffer): boolean {
+    // 첫 1KB를 검사하여 null 바이트가 있으면 바이너리로 판단
+    const sample = buffer.slice(0, 1024);
+    for (let i = 0; i < sample.length; i++) {
+      if (sample[i] === 0) return true;
+    }
+    return false;
+  }
+  
+  // 컨텍스트와 함께 매치된 라인들을 반환
+  function getMatchedLinesWithContext(content: string, pattern: string | RegExp, contextLines: number): Array<{
+    line_number: number;
+    line_content: string;
+    match_start?: number;
+    match_end?: number;
+    context_before?: string[];
+    context_after?: string[];
+  }> {
+    const lines = content.split('\n');
+    const matches: Array<{
+      line_number: number;
+      line_content: string;
+      match_start?: number;
+      match_end?: number;
+      context_before?: string[];
+      context_after?: string[];
+    }> = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const searchLine = case_sensitive ? line : line.toLowerCase();
+      let matched = false;
+      let matchStart = -1;
+      let matchEnd = -1;
+      
+      if (regexPattern) {
+        const regexMatch = line.match(regexPattern);
+        if (regexMatch) {
+          matched = true;
+          matchStart = regexMatch.index || 0;
+          matchEnd = matchStart + regexMatch[0].length;
+        }
+      } else {
+        const index = searchLine.indexOf(searchPattern);
+        if (index !== -1) {
+          matched = true;
+          matchStart = index;
+          matchEnd = index + searchPattern.length;
+        }
+      }
+      
+      if (matched) {
+        const matchInfo: any = {
+          line_number: i + 1,
+          line_content: line,
+          match_start: matchStart,
+          match_end: matchEnd
+        };
+        
+        // 컨텍스트 라인 추가
+        if (contextLines > 0) {
+          matchInfo.context_before = [];
+          matchInfo.context_after = [];
+          
+          // 이전 라인들
+          for (let j = Math.max(0, i - contextLines); j < i; j++) {
+            matchInfo.context_before.push(lines[j]);
+          }
+          
+          // 이후 라인들
+          for (let j = i + 1; j <= Math.min(lines.length - 1, i + contextLines); j++) {
+            matchInfo.context_after.push(lines[j]);
+          }
+        }
+        
+        matches.push(matchInfo);
+      }
+    }
+    
+    return matches;
+  }
+
   async function searchDirectory(dirPath: string) {
     if (results.length >= maxResults) return;
     
@@ -1153,53 +1286,107 @@ async function handleSearchFiles(args: any) {
         if (shouldExcludePath(fullPath)) continue;
         
         if (entry.isFile()) {
+          // 파일 패턴 필터링
+          if (fileRegex && !fileRegex.test(entry.name)) continue;
+          
           const searchName = case_sensitive ? entry.name : entry.name.toLowerCase();
           let matched = false;
           let matchType = '';
+          let matchedLines: any[] = [];
           
-          if (searchName.includes(searchPattern)) {
+          // 파일명 검색
+          if (regexPattern ? regexPattern.test(entry.name) : searchName.includes(searchPattern)) {
             matched = true;
             matchType = 'filename';
           }
           
+          // 내용 검색
           if (!matched && content_search) {
             try {
               const stats = await fs.stat(fullPath);
               if (stats.size < 10 * 1024 * 1024) { // 10MB 제한
-                const content = await fs.readFile(fullPath, 'utf-8');
+                // 바이너리 파일 체크
+                const buffer = await fs.readFile(fullPath);
+                
+                if (!include_binary && isBinaryFile(buffer)) {
+                  // 바이너리 파일은 건너뛰기
+                  continue;
+                }
+                
+                const content = buffer.toString('utf-8');
                 const searchContent = case_sensitive ? content : content.toLowerCase();
-                if (searchContent.includes(searchPattern)) {
+                
+                if (regexPattern ? regexPattern.test(content) : searchContent.includes(searchPattern)) {
                   matched = true;
                   matchType = 'content';
+                  
+                  // 매치된 라인들과 컨텍스트 수집
+                  matchedLines = getMatchedLinesWithContext(content, regexPattern || searchPattern, context_lines);
                 }
               }
-            } catch {
-              // 바이너리 파일 등 읽기 실패 무시
+            } catch (error) {
+              // 읽기 실패한 파일도 결과에 포함 (에러 정보와 함께)
+              if (matched) {
+                const stats = await fs.stat(fullPath);
+                results.push({
+                  path: fullPath,
+                  name: entry.name,
+                  match_type: matchType,
+                  size: stats.size,
+                  size_readable: formatSize(stats.size),
+                  modified: stats.mtime.toISOString(),
+                  extension: path.extname(fullPath),
+                  error: `Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`
+                });
+              }
+              continue;
             }
           }
           
           if (matched) {
             const stats = await fs.stat(fullPath);
-            results.push({
+            const result: any = {
               path: fullPath,
               name: entry.name,
               match_type: matchType,
               size: stats.size,
               size_readable: formatSize(stats.size),
               modified: stats.mtime.toISOString(),
-              extension: path.extname(fullPath)
-            });
+              created: stats.birthtime.toISOString(),
+              extension: path.extname(fullPath),
+              permissions: stats.mode,
+              is_binary: false
+            };
+            
+            // 내용 검색인 경우 매치된 라인 정보 추가
+            if (matchType === 'content' && matchedLines.length > 0) {
+              result.matched_lines = matchedLines.slice(0, 20); // 최대 20개 라인만
+              result.total_matches = matchedLines.length;
+              
+              // 바이너리 파일 여부 표시
+              try {
+                const buffer = await fs.readFile(fullPath);
+                result.is_binary = isBinaryFile(buffer);
+              } catch {
+                // 파일 읽기 실패
+              }
+            }
+            
+            results.push(result);
           }
         } else if (entry.isDirectory()) {
           await searchDirectory(fullPath);
         }
       }
-    } catch {
-      // 권한 없는 디렉토리 등 무시
+    } catch (error) {
+      // 권한 없는 디렉토리 등은 조용히 무시하지만, 로그에는 기록
+      console.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
   
+  const startTime = Date.now();
   await searchDirectory(safePath_resolved);
+  const searchTime = Date.now() - startTime;
   
   return {
     results: results,
@@ -1208,7 +1395,12 @@ async function handleSearchFiles(args: any) {
     search_path: safePath_resolved,
     content_search: content_search,
     case_sensitive: case_sensitive,
+    context_lines: context_lines,
+    file_pattern: file_pattern,
+    include_binary: include_binary,
     max_results_reached: results.length >= maxResults,
+    search_time_ms: searchTime,
+    regex_used: regexPattern !== null,
     timestamp: new Date().toISOString()
   };
 }
@@ -1969,6 +2161,267 @@ async function handleEditBlocks(args: any) {
     }
     throw error;
   }
+}
+
+// 새로운 코드 검색 함수 추가
+async function handleSearchCode(args: any) {
+  const {
+    path: searchPath,
+    pattern,
+    file_pattern = '',
+    context_lines = 2,
+    max_results = 50,
+    case_sensitive = false,
+    include_hidden = false,
+    max_file_size = 10
+  } = args;
+
+  const safePath_resolved = safePath(searchPath);
+  const maxResults = Math.min(max_results, 200);
+  const maxFileSize = max_file_size * 1024 * 1024; // MB to bytes
+  const results: any[] = [];
+
+  // 정규표현식 패턴 지원
+  let regexPattern: RegExp | null = null;
+  try {
+    regexPattern = new RegExp(pattern, case_sensitive ? 'g' : 'gi');
+  } catch {
+    // 정규표현식이 아닌 경우 문자열 검색으로 처리
+  }
+
+  // 파일 패턴 필터
+  let fileRegex: RegExp | null = null;
+  if (file_pattern) {
+    try {
+      // 와일드카드를 정규표현식으로 변환
+      const regexStr = file_pattern
+        .replace(/\./g, '\\.')
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.');
+      fileRegex = new RegExp(`^${regexStr}$`, 'i');
+    } catch {
+      // 정규표현식 변환 실패시 단순 문자열 포함 검사
+    }
+  }
+
+  // 코드 파일 확장자 (기본값)
+  const codeExtensions = new Set([
+    '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.h', '.hpp',
+    '.cs', '.php', '.rb', '.go', '.rs', '.swift', '.kt', '.scala', '.clj',
+    '.sh', '.bash', '.zsh', '.fish', '.ps1', '.cmd', '.bat', '.sql', '.html',
+    '.css', '.scss', '.sass', '.less', '.vue', '.svelte', '.md', '.markdown',
+    '.json', '.xml', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf'
+  ]);
+
+  // 바이너리 파일 감지 함수
+  function isBinaryFile(buffer: Buffer): boolean {
+    const sample = buffer.slice(0, 1024);
+    for (let i = 0; i < sample.length; i++) {
+      if (sample[i] === 0) return true;
+    }
+    return false;
+  }
+
+  // desktop-commander 스타일 출력 생성
+  function formatOutput(filePath: string, matches: Array<{
+    line_number: number;
+    line_content: string;
+    match_start: number;
+    match_end: number;
+    context_before: string[];
+    context_after: string[];
+  }>): string {
+    let output = `${filePath}:\n`;
+    
+    for (const match of matches) {
+      // 컨텍스트 이전 라인들
+      if (match.context_before && match.context_before.length > 0) {
+        match.context_before.forEach((line, index) => {
+          const lineNum = match.line_number - match.context_before.length + index;
+          output += `  ${lineNum}: ${line}\n`;
+        });
+      }
+      
+      // 매치된 라인 (하이라이트 표시)
+      const line = match.line_content;
+      const highlighted = line.substring(0, match.match_start) + 
+                         '**' + line.substring(match.match_start, match.match_end) + '**' +
+                         line.substring(match.match_end);
+      output += `  ${match.line_number}: ${highlighted}\n`;
+      
+      // 컨텍스트 이후 라인들
+      if (match.context_after && match.context_after.length > 0) {
+        match.context_after.forEach((line, index) => {
+          const lineNum = match.line_number + 1 + index;
+          output += `  ${lineNum}: ${line}\n`;
+        });
+      }
+      
+      output += '\n';
+    }
+    
+    return output;
+  }
+
+  async function searchDirectory(dirPath: string) {
+    if (results.length >= maxResults) return;
+
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (results.length >= maxResults) break;
+
+        const fullPath = path.join(dirPath, entry.name);
+
+        // 숨김 파일 필터링
+        if (!include_hidden && entry.name.startsWith('.')) continue;
+        
+        if (shouldExcludePath(fullPath)) continue;
+
+        if (entry.isFile()) {
+          // 파일 패턴 필터링
+          if (fileRegex) {
+            if (!fileRegex.test(entry.name)) continue;
+          } else if (!file_pattern) {
+            // 파일 패턴이 지정되지 않은 경우 코드 파일만 검색
+            const ext = path.extname(entry.name).toLowerCase();
+            if (!codeExtensions.has(ext)) continue;
+          }
+
+          try {
+            const stats = await fs.stat(fullPath);
+            
+            // 파일 크기 제한
+            if (stats.size > maxFileSize) continue;
+
+            const buffer = await fs.readFile(fullPath);
+            
+            // 바이너리 파일 스킵
+            if (isBinaryFile(buffer)) continue;
+
+            const content = buffer.toString('utf-8');
+            const lines = content.split('\n');
+            const matches: Array<{
+              line_number: number;
+              line_content: string;
+              match_start: number;
+              match_end: number;
+              context_before: string[];
+              context_after: string[];
+            }> = [];
+
+            // 각 라인에서 패턴 검색
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i];
+              const searchLine = case_sensitive ? line : line.toLowerCase();
+              const searchPattern = case_sensitive ? pattern : pattern.toLowerCase();
+              
+              let matched = false;
+              let matchStart = -1;
+              let matchEnd = -1;
+
+              if (regexPattern) {
+                regexPattern.lastIndex = 0; // 정규표현식 인덱스 리셋
+                const regexMatch = regexPattern.exec(line);
+                if (regexMatch) {
+                  matched = true;
+                  matchStart = regexMatch.index;
+                  matchEnd = matchStart + regexMatch[0].length;
+                }
+              } else {
+                const index = searchLine.indexOf(searchPattern);
+                if (index !== -1) {
+                  matched = true;
+                  matchStart = index;
+                  matchEnd = index + searchPattern.length;
+                }
+              }
+
+              if (matched) {
+                const matchInfo = {
+                  line_number: i + 1,
+                  line_content: line,
+                  match_start: matchStart,
+                  match_end: matchEnd,
+                  context_before: [] as string[],
+                  context_after: [] as string[]
+                };
+
+                // 컨텍스트 라인 추가
+                if (context_lines > 0) {
+                  // 이전 라인들
+                  for (let j = Math.max(0, i - context_lines); j < i; j++) {
+                    matchInfo.context_before.push(lines[j]);
+                  }
+
+                  // 이후 라인들
+                  for (let j = i + 1; j <= Math.min(lines.length - 1, i + context_lines); j++) {
+                    matchInfo.context_after.push(lines[j]);
+                  }
+                }
+
+                matches.push(matchInfo);
+              }
+            }
+
+            if (matches.length > 0) {
+              results.push({
+                file: fullPath,
+                relative_path: path.relative(safePath_resolved, fullPath),
+                matches: matches,
+                total_matches: matches.length,
+                file_size: stats.size,
+                file_size_readable: formatSize(stats.size),
+                modified: stats.mtime.toISOString(),
+                extension: path.extname(fullPath),
+                formatted_output: formatOutput(fullPath, matches)
+              });
+            }
+
+          } catch (error) {
+            // 읽기 실패한 파일은 조용히 건너뛰기
+            continue;
+          }
+        } else if (entry.isDirectory()) {
+          await searchDirectory(fullPath);
+        }
+      }
+    } catch (error) {
+      // 권한 없는 디렉토리 등은 조용히 무시
+      console.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  const startTime = Date.now();
+  await searchDirectory(safePath_resolved);
+  const searchTime = Date.now() - startTime;
+
+  // desktop-commander 스타일의 통합 출력 생성
+  let combinedOutput = '';
+  let totalMatches = 0;
+  
+  for (const result of results) {
+    combinedOutput += result.formatted_output;
+    totalMatches += result.total_matches;
+  }
+
+  return {
+    results: results,
+    total_files: results.length,
+    total_matches: totalMatches,
+    search_pattern: pattern,
+    search_path: safePath_resolved,
+    file_pattern: file_pattern,
+    context_lines: context_lines,
+    case_sensitive: case_sensitive,
+    include_hidden: include_hidden,
+    max_file_size_mb: max_file_size,
+    regex_used: regexPattern !== null,
+    search_time_ms: searchTime,
+    formatted_output: combinedOutput,
+    timestamp: new Date().toISOString()
+  };
 }
 
 main().catch((error) => {
