@@ -6,6 +6,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
+import { handleReadFileWithAutoChunking, handleListDirectoryWithAutoChunking, handleSearchFilesWithAutoChunking } from './enhanced-handlers.js';
 // import { searchCode, SearchResult } from './search.js';
 const execAsync = promisify(exec);
 // Claude 최적화 설정
@@ -221,7 +222,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'fast_read_file',
-                description: '파일을 읽습니다 (청킹 지원)',
+                description: '파일을 읽습니다 (자동 청킹 지원)',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -230,7 +231,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         max_size: { type: 'number', description: '읽을 최대 크기' },
                         line_start: { type: 'number', description: '시작 라인 번호' },
                         line_count: { type: 'number', description: '읽을 라인 수' },
-                        encoding: { type: 'string', description: '텍스트 인코딩', default: 'utf-8' }
+                        encoding: { type: 'string', description: '텍스트 인코딩', default: 'utf-8' },
+                        continuation_token: { type: 'string', description: '이전 호출의 연속 토큰' },
+                        auto_chunk: { type: 'boolean', description: '자동 청킹 활성화', default: true }
                     },
                     required: ['path']
                 }
@@ -273,7 +276,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'fast_list_directory',
-                description: '디렉토리 목록을 조회합니다 (페이징 지원)',
+                description: '디렉토리 목록을 조회합니다 (자동 청킹 페이징 지원)',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -283,7 +286,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         pattern: { type: 'string', description: '파일명 필터 패턴' },
                         show_hidden: { type: 'boolean', description: '숨김 파일 표시', default: false },
                         sort_by: { type: 'string', description: '정렬 기준', enum: ['name', 'size', 'modified', 'type'], default: 'name' },
-                        reverse: { type: 'boolean', description: '역순 정렬', default: false }
+                        reverse: { type: 'boolean', description: '역순 정렬', default: false },
+                        continuation_token: { type: 'string', description: '이전 호출의 연속 토큰' },
+                        auto_chunk: { type: 'boolean', description: '자동 청킹 활성화', default: true }
                     },
                     required: ['path']
                 }
@@ -313,7 +318,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'fast_search_files',
-                description: '파일을 검색합니다 (이름/내용) - 정규표현식, 컨텍스트, 라인번호 지원',
+                description: '파일을 검색합니다 (이름/내용) - 자동 청킹, 정규표현식, 컨텍스트, 라인번호 지원',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -324,14 +329,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         max_results: { type: 'number', description: '최대 결과 수', default: 100 },
                         context_lines: { type: 'number', description: '매치된 라인 주변 컨텍스트 라인 수', default: 0 },
                         file_pattern: { type: 'string', description: '파일명 필터 패턴 (*.js, *.txt 등)', default: '' },
-                        include_binary: { type: 'boolean', description: '바이너리 파일 포함 여부', default: false }
+                        include_binary: { type: 'boolean', description: '바이너리 파일 포함 여부', default: false },
+                        continuation_token: { type: 'string', description: '이전 호출의 연속 토큰' },
+                        auto_chunk: { type: 'boolean', description: '자동 청킹 활성화', default: true }
                     },
                     required: ['path', 'pattern']
                 }
             },
             {
                 name: 'fast_search_code',
-                description: '코드 검색 (ripgrep 스타일) - 라인번호와 컨텍스트 제공',
+                description: '코드 검색 (ripgrep 스타일) - 자동 청킹, 라인번호와 컨텍스트 제공',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -342,7 +349,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         max_results: { type: 'number', description: '최대 결과 수', default: 50 },
                         case_sensitive: { type: 'boolean', description: '대소문자 구분', default: false },
                         include_hidden: { type: 'boolean', description: '숨김 파일 포함', default: false },
-                        max_file_size: { type: 'number', description: '검색할 최대 파일 크기 (MB)', default: 10 }
+                        max_file_size: { type: 'number', description: '검색할 최대 파일 크기 (MB)', default: 10 },
+                        continuation_token: { type: 'string', description: '이전 호출의 연속 토큰' },
+                        auto_chunk: { type: 'boolean', description: '자동 청킹 활성화', default: true }
                     },
                     required: ['path', 'pattern']
                 }
@@ -508,7 +517,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 result = await handleListAllowedDirectories();
                 break;
             case 'fast_read_file':
-                result = await handleReadFile(args);
+                result = await handleReadFileWithAutoChunking(args);
                 break;
             case 'fast_write_file':
                 result = await handleWriteFile(args);
@@ -517,7 +526,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 result = await handleLargeWriteFile(args);
                 break;
             case 'fast_list_directory':
-                result = await handleListDirectory(args);
+                result = await handleListDirectoryWithAutoChunking(args);
                 break;
             case 'fast_get_file_info':
                 result = await handleGetFileInfo(args);
@@ -526,7 +535,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 result = await handleCreateDirectory(args);
                 break;
             case 'fast_search_files':
-                result = await handleSearchFiles(args);
+                result = await handleSearchFilesWithAutoChunking(args);
                 break;
             case 'fast_search_code':
                 result = await handleSearchCode(args);
@@ -593,7 +602,7 @@ async function handleListAllowedDirectories() {
     };
 }
 async function handleReadFile(args) {
-    const { path: filePath, start_offset = 0, max_size, line_start, line_count, encoding = 'utf-8' } = args;
+    const { path: filePath, start_offset = 0, max_size, line_start, line_count, encoding = 'utf-8', continuation_token, auto_chunk = true } = args;
     const safePath_resolved = safePath(filePath);
     const stats = await fs.stat(safePath_resolved);
     if (!stats.isFile()) {

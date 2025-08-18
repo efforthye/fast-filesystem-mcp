@@ -6,17 +6,15 @@ import {
   createChunkedResponse,
   globalTokenManager
 } from './auto-chunking.js';
-
-// 필요한 유틸리티 함수들 import
-declare function safePath(inputPath: string): string;
-declare function formatSize(bytes: number): string;
-declare function shouldExcludePath(targetPath: string, excludePatterns?: string[]): boolean;
-declare function truncateContent(content: string, maxSize?: number): { content: string; truncated: boolean; };
-
-// Constants (from main file)
-const CLAUDE_MAX_CHUNK_SIZE = 2 * 1024 * 1024;    // 2MB
-const CLAUDE_MAX_LINES = 2000;                     // 최대 2000줄
-const CLAUDE_MAX_DIR_ITEMS = 1000;                 // 디렉토리 항목 최대 1000개
+import {
+  safePath,
+  formatSize,
+  shouldExcludePath,
+  truncateContent,
+  CLAUDE_MAX_CHUNK_SIZE,
+  CLAUDE_MAX_LINES,
+  CLAUDE_MAX_DIR_ITEMS
+} from './utils.js';
 
 // handleReadFile 함수 (자동 청킹 지원)
 export async function handleReadFileWithAutoChunking(args: any) {
