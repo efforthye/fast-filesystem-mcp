@@ -3,7 +3,7 @@ Advanced filesystem operations for Claude Desktop with large file handling capab
 
 ## Quick Start
 Add to your Claude Desktop config.
-**Basic setup**
+- **Basic setup**
 ```json
 {
   "mcpServers": {
@@ -15,7 +15,7 @@ Add to your Claude Desktop config.
 }
 ```
 
-**With backup files enabled:**
+- **With backup files enabled**
 ```json
 {
   "mcpServers": {
