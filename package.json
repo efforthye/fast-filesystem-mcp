@@ -1,7 +1,7 @@
 {
   "name": "fast-filesystem-mcp",
-  "version": "2.8.4",
-  "description": "Fast Filesystem MCP Server - Advanced file operations for Claude Desktop with large file handling and optimized performance",
+  "version": "3.0.0",
+  "description": "Fast Filesystem MCP Server - Advanced file operations with Auto-Chunking for large responses, optimized for Claude Desktop",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -29,7 +29,10 @@
     "desktop",
     "large-file",
     "streaming",
-    "file-operations"
+    "file-operations",
+    "auto-chunking",
+    "response-splitting",
+    "continuation-token"
   ],
   "author": {
     "name": "efforthye",
