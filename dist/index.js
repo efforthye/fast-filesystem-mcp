@@ -201,7 +201,7 @@ async function getOriginalFileSize(filePath) {
 // MCP 서버 생성
 const server = new Server({
     name: 'fast-filesystem',
-    version: '2.8.0',
+    version: '3.2.0',
 }, {
     capabilities: {
         tools: {},
@@ -429,7 +429,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         old_text: { type: 'string', description: '정확히 매칭할 기존 텍스트 (최소 컨텍스트 포함)' },
                         new_text: { type: 'string', description: '새로운 텍스트' },
                         expected_replacements: { type: 'number', description: '예상 교체 횟수 (안전성을 위해)', default: 1 },
-                        backup: { type: 'boolean', description: '백업 생성', default: true }
+                        backup: { type: 'boolean', description: '백업 생성', default: true },
+                        word_boundary: { type: 'boolean', description: '단어 경계 검사 (부분 매칭 방지)', default: false },
+                        preview_only: { type: 'boolean', description: '미리보기만 (실제 편집 안함)', default: false },
+                        case_sensitive: { type: 'boolean', description: '대소문자 구분', default: true }
+                    },
+                    required: ['path', 'old_text', 'new_text']
+                }
+            },
+            {
+                name: 'fast_safe_edit',
+                description: '안전한 스마트 편집: 위험 감지 및 대화형 확인',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: '편집할 파일 경로' },
+                        old_text: { type: 'string', description: '교체할 텍스트' },
+                        new_text: { type: 'string', description: '새로운 텍스트' },
+                        safety_level: {
+                            type: 'string',
+                            enum: ['strict', 'moderate', 'flexible'],
+                            default: 'moderate',
+                            description: '안전 수준 (strict: 매우 안전, moderate: 균형, flexible: 유연)'
+                        },
+                        auto_add_context: { type: 'boolean', description: '자동 컨텍스트 추가', default: true },
+                        require_confirmation: { type: 'boolean', description: '위험시 확인 요구', default: true }
                     },
                     required: ['path', 'old_text', 'new_text']
                 }
@@ -712,7 +736,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 result = await handleEditFile(args);
                 break;
             case 'fast_edit_block':
-                result = await handleEditBlock(args);
+                result = await handleEditBlockSafe(args);
+                break;
+            case 'fast_safe_edit':
+                result = await handleSafeEdit(args);
                 break;
             case 'fast_edit_multiple_blocks':
                 result = await handleEditMultipleBlocks(args);
@@ -3293,6 +3320,314 @@ async function cleanupExtraFiles(sourcePath, targetPath, relativePath, results, 
     }
     catch (error) {
         // 대상 디렉토리가 없는 경우 등은 무시
+    }
+}
+// 안전한 편집 핸들러 함수들
+async function handleEditBlockSafe(args) {
+    const { path: filePath, old_text, new_text, expected_replacements = 1, backup = true, word_boundary = false, preview_only = false, case_sensitive = true } = args;
+    const safePath_resolved = safePath(filePath);
+    // 파일 존재 확인
+    let fileExists = true;
+    try {
+        await fs.access(safePath_resolved);
+    }
+    catch {
+        fileExists = false;
+        throw new Error(`File does not exist: ${safePath_resolved}`);
+    }
+    const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
+    const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
+    // 위험 분석
+    const riskAnalysis = analyzeEditRisk(old_text, new_text, originalContent, {
+        word_boundary,
+        case_sensitive
+    });
+    // 백업 생성 (설정에 따라)
+    if (backup && CREATE_BACKUP_FILES && !preview_only) {
+        await fs.copyFile(safePath_resolved, backupPath);
+    }
+    try {
+        // 매칭 패턴 준비
+        let searchPattern = old_text;
+        let flags = case_sensitive ? 'g' : 'gi';
+        if (word_boundary) {
+            // 단어 경계 추가로 부분 매칭 방지
+            searchPattern = `\\b${escapeRegExp(old_text)}\\b`;
+        }
+        else {
+            searchPattern = escapeRegExp(old_text);
+        }
+        const regex = new RegExp(searchPattern, flags);
+        const occurrences = (originalContent.match(regex) || []).length;
+        if (occurrences === 0) {
+            return {
+                message: 'Text not found',
+                path: safePath_resolved,
+                old_text: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+                expected_replacements: expected_replacements,
+                actual_occurrences: 0,
+                status: 'not_found',
+                risk_analysis: riskAnalysis,
+                backup_created: backupPath,
+                backup_enabled: CREATE_BACKUP_FILES,
+                timestamp: new Date().toISOString()
+            };
+        }
+        if (expected_replacements !== occurrences) {
+            return {
+                message: 'Replacement count mismatch - operation cancelled for safety',
+                path: safePath_resolved,
+                old_text: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+                expected_replacements: expected_replacements,
+                actual_occurrences: occurrences,
+                status: 'count_mismatch',
+                safety_info: 'Use expected_replacements parameter to confirm the exact number of changes',
+                risk_analysis: riskAnalysis,
+                backup_created: backupPath,
+                backup_enabled: CREATE_BACKUP_FILES,
+                timestamp: new Date().toISOString()
+            };
+        }
+        // 미리보기 모드
+        if (preview_only) {
+            const modifiedContent = originalContent.replace(regex, new_text);
+            const changePreview = generateChangePreview(originalContent, modifiedContent, old_text);
+            return {
+                message: 'Preview completed - no changes made',
+                path: safePath_resolved,
+                changes_made: 0,
+                expected_replacements: expected_replacements,
+                actual_replacements: occurrences,
+                preview_mode: true,
+                change_preview: changePreview,
+                risk_analysis: riskAnalysis,
+                backup_created: null,
+                backup_enabled: CREATE_BACKUP_FILES,
+                timestamp: new Date().toISOString()
+            };
+        }
+        // 안전 확인 완료 - 편집 실행
+        const modifiedContent = originalContent.replace(regex, new_text);
+        // 디렉토리 생성
+        const dir = path.dirname(safePath_resolved);
+        await fs.mkdir(dir, { recursive: true });
+        // 수정된 내용 저장
+        await fs.writeFile(safePath_resolved, modifiedContent, 'utf-8');
+        const stats = await fs.stat(safePath_resolved);
+        const originalLines = originalContent.split('\n').length;
+        const newLines = modifiedContent.split('\n').length;
+        // 변경된 위치 정보 제공
+        const beforeLines = originalContent.substring(0, originalContent.indexOf(old_text)).split('\n');
+        const changeStartLine = beforeLines.length;
+        return {
+            message: 'Safe block editing completed successfully',
+            path: safePath_resolved,
+            changes_made: occurrences,
+            expected_replacements: expected_replacements,
+            actual_replacements: occurrences,
+            change_start_line: changeStartLine,
+            original_lines: originalLines,
+            new_lines: newLines,
+            old_text_preview: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+            new_text_preview: new_text.length > 100 ? new_text.substring(0, 100) + '...' : new_text,
+            status: 'success',
+            risk_analysis: riskAnalysis,
+            word_boundary_used: word_boundary,
+            case_sensitive_used: case_sensitive,
+            backup_created: backupPath,
+            backup_enabled: CREATE_BACKUP_FILES,
+            size: stats.size,
+            size_readable: formatSize(stats.size),
+            timestamp: new Date().toISOString()
+        };
+    }
+    catch (error) {
+        // 에러 시 백업에서 복구
+        if (backup && CREATE_BACKUP_FILES && backupPath && !preview_only) {
+            try {
+                await fs.copyFile(backupPath, safePath_resolved);
+            }
+            catch {
+                // 복구 실패는 무시
+            }
+        }
+        throw error;
+    }
+}
+// 위험 분석 함수
+function analyzeEditRisk(oldText, newText, content, options) {
+    const risks = [];
+    const warnings = [];
+    let riskLevel = 'low';
+    // 1. 짧은 텍스트 위험 (부분 매칭 가능성)
+    if (oldText.length < 10 && !options.word_boundary) {
+        risks.push('Short text pattern may cause unintended partial matches');
+        riskLevel = 'medium';
+    }
+    // 2. 다중 매칭 위험
+    const occurrences = (content.match(new RegExp(escapeRegExp(oldText), options.case_sensitive ? 'g' : 'gi')) || []).length;
+    if (occurrences > 3) {
+        risks.push(`High number of matches (${occurrences}) increases risk of unintended changes`);
+        riskLevel = 'high';
+    }
+    // 3. 변수명/식별자 패턴 감지
+    const identifierPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+    if (identifierPattern.test(oldText.trim()) && !options.word_boundary) {
+        warnings.push('Identifier pattern detected - consider using word_boundary option');
+        if (riskLevel === 'low')
+            riskLevel = 'medium';
+    }
+    // 4. 특수문자 포함 검사
+    const hasSpecialChars = /[^\w\s]/.test(oldText);
+    if (!hasSpecialChars && oldText.includes(' ')) {
+        warnings.push('Whitespace-only separation may cause unexpected matches');
+    }
+    // 5. 대소문자 혼합 패턴
+    const hasMixedCase = /[a-z]/.test(oldText) && /[A-Z]/.test(oldText);
+    if (hasMixedCase && !options.case_sensitive) {
+        warnings.push('Mixed case pattern with case-insensitive matching may be risky');
+    }
+    return {
+        risk_level: riskLevel,
+        risks: risks,
+        warnings: warnings,
+        recommendations: generateSafetyRecommendations(oldText, riskLevel, options)
+    };
+}
+// 안전성 권장사항 생성
+function generateSafetyRecommendations(oldText, riskLevel, options) {
+    const recommendations = [];
+    if (riskLevel === 'high') {
+        recommendations.push('Consider adding more context to the old_text');
+        recommendations.push('Use preview_only: true to verify changes first');
+    }
+    if (oldText.length < 10) {
+        recommendations.push('Add surrounding context to make the match more specific');
+    }
+    if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(oldText.trim()) && !options.word_boundary) {
+        recommendations.push('Use word_boundary: true for identifier replacements');
+    }
+    recommendations.push('Always enable backup: true for important files');
+    return recommendations;
+}
+// 변경 미리보기 생성
+function generateChangePreview(original, modified, pattern) {
+    const originalLines = original.split('\n');
+    const modifiedLines = modified.split('\n');
+    const preview = [];
+    // 변경된 라인들 찾기
+    for (let i = 0; i < Math.max(originalLines.length, modifiedLines.length); i++) {
+        const origLine = originalLines[i] || '';
+        const modLine = modifiedLines[i] || '';
+        if (origLine !== modLine) {
+            preview.push({
+                line_number: i + 1,
+                original: origLine,
+                modified: modLine,
+                change_type: origLine.includes(pattern) ? 'replacement' : 'side_effect'
+            });
+            if (preview.length >= 10) { // 최대 10개 라인만 표시
+                preview.push({ line_number: -1, original: '...', modified: '...', change_type: 'truncated' });
+                break;
+            }
+        }
+    }
+    return preview;
+}
+// 스마트 안전 편집 핸들러
+async function handleSafeEdit(args) {
+    const { path: filePath, old_text, new_text, safety_level = 'moderate', auto_add_context = true, require_confirmation = true } = args;
+    const safePath_resolved = safePath(filePath);
+    const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
+    // 자동 컨텍스트 추가
+    let enhancedOldText = old_text;
+    if (auto_add_context && old_text.length < 20) {
+        enhancedOldText = addSmartContext(old_text, originalContent);
+    }
+    // 안전 수준에 따른 설정
+    const safetyConfig = getSafetyConfig(safety_level);
+    // 위험 분석
+    const riskAnalysis = analyzeEditRisk(enhancedOldText, new_text, originalContent, safetyConfig);
+    // 위험 수준에 따른 처리
+    if (riskAnalysis.risk_level === 'high' && require_confirmation) {
+        return {
+            message: 'High risk detected - confirmation required',
+            path: safePath_resolved,
+            risk_analysis: riskAnalysis,
+            enhanced_old_text: enhancedOldText,
+            original_old_text: old_text,
+            auto_context_added: enhancedOldText !== old_text,
+            status: 'confirmation_required',
+            safety_level: safety_level,
+            next_steps: [
+                'Review the risk analysis above',
+                'Consider using enhanced_old_text for safer matching',
+                'Set require_confirmation: false to proceed anyway',
+                'Use preview_only: true to see changes first'
+            ],
+            timestamp: new Date().toISOString()
+        };
+    }
+    // 안전한 편집 실행
+    return await handleEditBlockSafe({
+        path: filePath,
+        old_text: enhancedOldText,
+        new_text: new_text,
+        expected_replacements: 1,
+        backup: true,
+        word_boundary: safetyConfig.word_boundary,
+        preview_only: false,
+        case_sensitive: safetyConfig.case_sensitive
+    });
+}
+// 스마트 컨텍스트 추가
+function addSmartContext(pattern, content) {
+    const lines = content.split('\n');
+    // 패턴이 포함된 라인 찾기
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes(pattern)) {
+            // 전체 라인을 컨텍스트로 사용 (단, 너무 길면 줄임)
+            if (line.length <= 100) {
+                return line.trim();
+            }
+            else {
+                // 패턴 주변 50자씩 추출
+                const index = line.indexOf(pattern);
+                const start = Math.max(0, index - 25);
+                const end = Math.min(line.length, index + pattern.length + 25);
+                return line.substring(start, end).trim();
+            }
+        }
+    }
+    return pattern; // 컨텍스트 추가 실패시 원본 반환
+}
+// 안전 수준 설정
+function getSafetyConfig(level) {
+    switch (level) {
+        case 'strict':
+            return {
+                word_boundary: true,
+                case_sensitive: true,
+                require_context: true,
+                min_context_length: 20
+            };
+        case 'moderate':
+            return {
+                word_boundary: false,
+                case_sensitive: true,
+                require_context: false,
+                min_context_length: 10
+            };
+        case 'flexible':
+            return {
+                word_boundary: false,
+                case_sensitive: false,
+                require_context: false,
+                min_context_length: 5
+            };
+        default:
+            return getSafetyConfig('moderate');
     }
 }
 //# sourceMappingURL=index.js.map
