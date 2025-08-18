@@ -201,7 +201,7 @@ async function getOriginalFileSize(filePath) {
 // MCP 서버 생성
 const server = new Server({
     name: 'fast-filesystem',
-    version: '3.2.0',
+    version: '3.2.1',
 }, {
     capabilities: {
         tools: {},
@@ -1762,7 +1762,7 @@ function getMimeType(filePath) {
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error('Fast Filesystem MCP Server v2.8.0 running on stdio (with configurable backup feature)');
+    console.error('Fast Filesystem MCP Server v3.2.1 running on stdio (with advanced safe editing features)');
 }
 // RegExp escape 함수
 function escapeRegExp(string) {
