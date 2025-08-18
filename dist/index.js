@@ -1416,8 +1416,10 @@ async function searchCodeWithRipgrep(options) {
     // @vscode/ripgrep이 설치되지 않았을 경우 폴백
     let rgPath;
     try {
-        // 동적 import로 ripgrep 경로 가져오기
-        const ripgrepModule = eval('require("@vscode/ripgrep")');
+        // 동적 require로 ripgrep 경로 가져오기
+        const createRequire = (await import('module')).createRequire;
+        const require = createRequire(import.meta.url);
+        const ripgrepModule = require('@vscode/ripgrep');
         rgPath = ripgrepModule.rgPath;
     }
     catch {
