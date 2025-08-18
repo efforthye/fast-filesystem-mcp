@@ -422,6 +422,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['path']
         }
       },
+      /*
       {
         name: 'fast_edit_file',
         description: '파일의 텍스트를 찾아서 바꿉니다 (단순 텍스트 치환)',
@@ -449,6 +450,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['path']
         }
       },
+      */
       {
         name: 'fast_edit_block',
         description: '정교한 블록 편집: 정확한 문자열 매칭으로 안전한 편집 (desktop-commander 방식)',
@@ -571,9 +573,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'fast_find_large_files':
         result = await handleFindLargeFiles(args);
         break;
+      /*
       case 'fast_edit_file':
         result = await handleEditFile(args);
         break;
+      */
       case 'fast_edit_block':
         result = await handleEditBlock(args);
         break;

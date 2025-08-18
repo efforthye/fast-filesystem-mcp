@@ -362,7 +362,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'fast_edit_file',
-                description: '파일의 텍스트를 찾아서 바꿉니다 (배열로 여러 편집 가능)',
+                description: '파일의 텍스트를 찾아서 바꿉니다 (단순 텍스트 치환)',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -385,6 +385,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         create_if_missing: { type: 'boolean', description: '파일이 없으면 생성', default: false }
                     },
                     required: ['path']
+                }
+            },
+            {
+                name: 'fast_edit_block',
+                description: '정교한 블록 편집: 정확한 문자열 매칭으로 안전한 편집 (desktop-commander 방식)',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: '편집할 파일 경로' },
+                        old_text: { type: 'string', description: '정확히 매칭할 기존 텍스트 (최소 컨텍스트 포함)' },
+                        new_text: { type: 'string', description: '새로운 텍스트' },
+                        expected_replacements: { type: 'number', description: '예상 교체 횟수 (안전성을 위해)', default: 1 },
+                        backup: { type: 'boolean', description: '백업 생성', default: true }
+                    },
+                    required: ['path', 'old_text', 'new_text']
                 }
             },
             {
@@ -493,6 +508,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 break;
             case 'fast_edit_file':
                 result = await handleEditFile(args);
+                break;
+            case 'fast_edit_block':
+                result = await handleEditBlock(args);
                 break;
             case 'fast_edit_multiple_blocks':
                 result = await handleEditMultipleBlocks(args);
@@ -1248,7 +1266,7 @@ async function handleEditFile(args) {
                 });
                 continue;
             }
-            // 전체 문자열에서 텍스트 치환 (Python 방식)
+            // 전체 문자열에서 텍스트 치환 (단순 문자열 치환만)
             const occurrences = (modifiedContent.match(new RegExp(escapeRegExp(oldText), 'g')) || []).length;
             if (occurrences > 0) {
                 modifiedContent = modifiedContent.replace(new RegExp(escapeRegExp(oldText), 'g'), newText);
@@ -1296,6 +1314,97 @@ async function handleEditFile(args) {
         if (fileExists && backup && backupPath && error instanceof Error &&
             (error.message.includes('EACCES') || error.message.includes('EPERM') ||
                 error.message.includes('ENOENT') || error.message.includes('write'))) {
+            try {
+                await fs.copyFile(backupPath, safePath_resolved);
+            }
+            catch {
+                // 복구 실패는 무시
+            }
+        }
+        throw error;
+    }
+}
+// 정교한 블록 편집 핸들러 (desktop-commander 방식)
+async function handleEditBlock(args) {
+    const { path: filePath, old_text, new_text, expected_replacements = 1, backup = true } = args;
+    const safePath_resolved = safePath(filePath);
+    // 파일 존재 확인
+    let fileExists = true;
+    try {
+        await fs.access(safePath_resolved);
+    }
+    catch {
+        fileExists = false;
+        throw new Error(`File does not exist: ${safePath_resolved}`);
+    }
+    const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
+    const backupPath = backup ? `${safePath_resolved}.backup.${Date.now()}` : null;
+    // 백업 생성
+    if (backup) {
+        await fs.copyFile(safePath_resolved, backupPath);
+    }
+    try {
+        // 정확한 문자열 매칭 확인
+        const occurrences = (originalContent.match(new RegExp(escapeRegExp(old_text), 'g')) || []).length;
+        if (occurrences === 0) {
+            return {
+                message: 'Text not found',
+                path: safePath_resolved,
+                old_text: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+                expected_replacements: expected_replacements,
+                actual_occurrences: 0,
+                status: 'not_found',
+                backup_created: backupPath,
+                timestamp: new Date().toISOString()
+            };
+        }
+        if (expected_replacements !== occurrences) {
+            return {
+                message: 'Replacement count mismatch - operation cancelled for safety',
+                path: safePath_resolved,
+                old_text: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+                expected_replacements: expected_replacements,
+                actual_occurrences: occurrences,
+                status: 'count_mismatch',
+                safety_info: 'Use expected_replacements parameter to confirm the exact number of changes',
+                backup_created: backupPath,
+                timestamp: new Date().toISOString()
+            };
+        }
+        // 안전 확인 완료 - 편집 실행
+        const modifiedContent = originalContent.replace(new RegExp(escapeRegExp(old_text), 'g'), new_text);
+        // 디렉토리 생성
+        const dir = path.dirname(safePath_resolved);
+        await fs.mkdir(dir, { recursive: true });
+        // 수정된 내용 저장
+        await fs.writeFile(safePath_resolved, modifiedContent, 'utf-8');
+        const stats = await fs.stat(safePath_resolved);
+        const originalLines = originalContent.split('\n').length;
+        const newLines = modifiedContent.split('\n').length;
+        // 변경된 위치 정보 제공
+        const beforeLines = originalContent.substring(0, originalContent.indexOf(old_text)).split('\n');
+        const changeStartLine = beforeLines.length;
+        return {
+            message: 'Block edited successfully with precise matching',
+            path: safePath_resolved,
+            changes_made: occurrences,
+            expected_replacements: expected_replacements,
+            actual_replacements: occurrences,
+            change_start_line: changeStartLine,
+            original_lines: originalLines,
+            new_lines: newLines,
+            old_text_preview: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+            new_text_preview: new_text.length > 100 ? new_text.substring(0, 100) + '...' : new_text,
+            status: 'success',
+            backup_created: backupPath,
+            size: stats.size,
+            size_readable: formatSize(stats.size),
+            timestamp: new Date().toISOString()
+        };
+    }
+    catch (error) {
+        // 에러 시 백업에서 복구
+        if (backup && backupPath) {
             try {
                 await fs.copyFile(backupPath, safePath_resolved);
             }
