@@ -65,11 +65,25 @@ Control backup file creation behavior:
 - `fast_large_write_file` - Stream-based writing for large files
 - `fast_get_file_info` - Get detailed file information
 
+### Complex File Management
+- `fast_copy_file` - Copy files and directories with advanced options
+- `fast_move_file` - Move/rename files and directories safely
+- `fast_delete_file` - Delete files and directories with protection
+- `fast_batch_file_operations` - Execute multiple file operations in sequence
+
+### Archive Management
+- `fast_compress_files` - Create compressed archives (tar, tar.gz, tar.bz2)
+- `fast_extract_archive` - Extract compressed archives with options
+
+### Directory Synchronization 
+- `fast_sync_directories` - Advanced directory synchronization with multiple modes
+
 ### Advanced Editing Tools
 - `fast_edit_file` - Precise line-based file editing with multiple modes
+- `fast_edit_block` - Safe block editing with exact string matching
+- `fast_edit_blocks` - Batch block editing for multiple precise changes
 - `fast_edit_multiple_blocks` - Edit multiple sections in a single operation
 - `fast_extract_lines` - Extract specific lines or ranges from files
-- `fast_search_and_replace` - Advanced search and replace with regex support
 
 ### Directory Operations
 - `fast_list_directory` - List directory contents with pagination
@@ -78,6 +92,7 @@ Control backup file creation behavior:
 
 ### Search Operations
 - `fast_search_files` - Search files by name or content
+- `fast_search_code` - Advanced code search with ripgrep integration
 - `fast_find_large_files` - Find large files in directories
 
 ### System Operations

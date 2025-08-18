@@ -1,4 +1,140 @@
 # Fast Filesystem MCP Changelog
+# Changelog
+
+## v3.1.0 - Advanced File Operations & Complex File Tasks
+
+### 🚀 Major New Features - Complex File Operations
+
+#### **File Management Operations**
+- **fast_copy_file**: Copy files and directories with advanced options
+  - Recursive directory copying
+  - Timestamp preservation
+  - Overwrite protection
+  - Automatic directory creation
+
+- **fast_move_file**: Move/rename files and directories
+  - Cross-device move support (copy + delete fallback)
+  - Backup creation before overwrite
+  - Directory creation
+  - Safe overwrite handling
+
+- **fast_delete_file**: Safe file and directory deletion
+  - Protection against system directories
+  - Confirmation requirements with force override
+  - Recursive directory deletion
+  - Backup before deletion option
+
+#### **Batch Operations**
+- **fast_batch_file_operations**: Execute multiple file operations in sequence
+  - Support for copy, move, delete, rename operations
+  - Dry-run mode for operation preview
+  - Stop-on-error or continue-on-error modes
+  - Comprehensive backup system
+  - Detailed operation results
+
+#### **Archive Management**
+- **fast_compress_files**: Create compressed archives
+  - Support for tar, tar.gz, tar.bz2 formats
+  - Configurable compression levels
+  - Exclude patterns for selective compression
+  - Multiple file/directory input support
+
+- **fast_extract_archive**: Extract compressed archives
+  - Automatic format detection
+  - Selective file extraction
+  - Overwrite protection
+  - Permission preservation
+
+#### **Directory Synchronization**
+- **fast_sync_directories**: Advanced directory synchronization
+  - Multiple sync modes: mirror, update, merge
+  - Preserve newer files option
+  - Delete extra files option
+  - Exclude patterns support
+  - Dry-run capability
+
+### 🔧 Enhanced Features
+- **Cross-platform compatibility**: All operations work on Windows, macOS, and Linux
+- **Safety mechanisms**: Multiple confirmation layers and backup systems
+- **Performance optimization**: Efficient handling of large file operations
+- **Error recovery**: Comprehensive error handling with rollback capabilities
+- **Detailed reporting**: Comprehensive operation summaries and results
+
+### 📋 Usage Examples
+
+#### Batch File Operations
+```typescript
+await fast_batch_file_operations({
+  operations: [
+    { operation: "copy", source: "/src/file1.txt", destination: "/dest/file1.txt" },
+    { operation: "move", source: "/temp/file2.txt", destination: "/archive/file2.txt" },
+    { operation: "delete", source: "/tmp/old_file.txt" }
+  ],
+  dry_run: false,
+  create_backup: true,
+  stop_on_error: true
+});
+```
+
+#### Directory Synchronization
+```typescript
+await fast_sync_directories({
+  source_dir: "/source/project",
+  target_dir: "/backup/project",
+  sync_mode: "update",
+  delete_extra: false,
+  preserve_newer: true,
+  exclude_patterns: [".git", "node_modules", "*.log"]
+});
+```
+
+#### File Compression
+```typescript
+await fast_compress_files({
+  paths: ["/project/src", "/project/docs"],
+  output_path: "/backups/project_backup.tar.gz",
+  format: "tar.gz",
+  compression_level: 6,
+  exclude_patterns: ["*.log", "node_modules", ".git"]
+});
+```
+
+### 🛡️ Safety & Security
+- **System directory protection**: Prevents accidental deletion of critical paths
+- **Backup integration**: Configurable backup creation before destructive operations
+- **Force confirmation**: Explicit confirmation required for dangerous operations
+- **Path validation**: Comprehensive path safety checks
+- **Error recovery**: Automatic rollback on operation failures
+
+### 🎯 Performance Improvements
+- **Streaming operations**: Large file handling with memory efficiency
+- **Parallel processing**: Batch operations with optimal resource usage
+- **Cross-device optimization**: Intelligent handling of cross-filesystem operations
+- **Progress tracking**: Detailed operation progress and timing information
+
+### 📦 Updated Dependencies
+- Enhanced error handling throughout all operations
+- Improved logging and debugging capabilities
+- Better integration with system tools (tar, etc.)
+
+### 🔄 Breaking Changes
+- None - All existing functionality remains fully compatible
+
+### 📈 What This Solves
+This update directly addresses the feedback about "복잡한 파일 작업" (complex file operations) by providing:
+1. **파일 이동, 복사 등의 고급 작업** - Full support for advanced file operations
+2. **여러 파일 일괄 처리 기능** - Comprehensive batch processing capabilities
+3. **Archive management** - Complete compression and extraction support
+4. **Directory synchronization** - Advanced sync capabilities
+
+### 🏆 Benefits
+- **Productivity**: Handle complex file operations without switching tools
+- **Safety**: Multiple safety layers prevent data loss
+- **Efficiency**: Batch operations reduce overhead and improve performance
+- **Flexibility**: Configurable options for different use cases
+- **Reliability**: Comprehensive error handling and recovery mechanisms
+
+---
 
 ## v2.8.0 - Batch Block Editing
 

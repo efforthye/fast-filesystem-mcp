@@ -1,7 +1,7 @@
 {
   "name": "fast-filesystem-mcp",
-  "version": "3.0.2",
-  "description": "Fast Filesystem MCP Server - Advanced file operations with Auto-Chunking for large responses, optimized for Claude Desktop",
+  "version": "3.1.0",
+  "description": "Fast Filesystem MCP Server - Advanced file operations with Auto-Chunking, complex file operations (copy, move, delete, batch, compress), optimized for Claude Desktop",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -32,7 +32,14 @@
     "file-operations",
     "auto-chunking",
     "response-splitting",
-    "continuation-token"
+    "continuation-token",
+    "file-copy",
+    "file-move",
+    "file-delete",
+    "batch-operations",
+    "file-compression",
+    "directory-sync",
+    "advanced-file-ops"
   ],
   "author": {
     "name": "efforthye",
