@@ -422,35 +422,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['path']
         }
       },
-      /*
       {
         name: 'fast_edit_file',
-        description: '파일의 텍스트를 찾아서 바꿉니다 (단순 텍스트 치환)',
+        description: '파일의 특정 부분을 수정합니다 (Python edit_file과 동일)',
         inputSchema: {
           type: 'object',
           properties: {
             path: { type: 'string', description: '편집할 파일 경로' },
             edits: { 
               type: 'array',
-              description: '편집할 내용 배열 [{"old_text": "찾을텍스트", "new_text": "바꿀텍스트"}]',
+              description: '수정 사항 리스트 [{"old_text": "찾을 텍스트", "new_text": "바꿀 텍스트"}]',
               items: {
                 type: 'object',
                 properties: {
-                  old_text: { type: 'string', description: '찾을 기존 텍스트' },
-                  new_text: { type: 'string', description: '새로운 텍스트' }
+                  old_text: { type: 'string', description: '찾을 텍스트' },
+                  new_text: { type: 'string', description: '바꿀 텍스트' }
                 },
                 required: ['old_text', 'new_text']
               }
             },
-            old_text: { type: 'string', description: '찾을 기존 텍스트 (단일 편집용)' },
-            new_text: { type: 'string', description: '새로운 텍스트 (단일 편집용)' },
-            backup: { type: 'boolean', description: '백업 생성', default: true },
-            create_if_missing: { type: 'boolean', description: '파일이 없으면 생성', default: false }
+            encoding: { type: 'string', description: '파일 인코딩', default: 'utf-8' },
+            create_backup: { type: 'boolean', description: '백업 파일 생성 여부', default: true },
+            dry_run: { type: 'boolean', description: '실제 수정 없이 미리보기만', default: false }
           },
-          required: ['path']
+          required: ['path', 'edits']
         }
       },
-      */
       {
         name: 'fast_edit_block',
         description: '정교한 블록 편집: 정확한 문자열 매칭으로 안전한 편집 (desktop-commander 방식)',
@@ -573,11 +570,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'fast_find_large_files':
         result = await handleFindLargeFiles(args);
         break;
-      /*
       case 'fast_edit_file':
         result = await handleEditFile(args);
         break;
-      */
       case 'fast_edit_block':
         result = await handleEditBlock(args);
         break;
