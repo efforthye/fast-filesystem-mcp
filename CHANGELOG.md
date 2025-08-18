@@ -1,5 +1,45 @@
 # Fast Filesystem MCP Changelog
 
+## v2.8.0 - Batch Block Editing
+
+### New Features
+- **fast_edit_blocks**: New tool for efficient batch block editing
+- **Multiple precise edits**: Process multiple `fast_edit_block` operations in a single call
+- **Safety-first approach**: Each edit validates expected replacements before applying changes
+- **Performance optimization**: Significantly faster than sequential `fast_edit_block` calls
+
+### Usage Example
+```typescript
+await fast_edit_blocks({
+  path: "/path/to/file.ts",
+  edits: [
+    {
+      old_text: "// old comment 1",
+      new_text: "// new comment 1",
+      expected_replacements: 1
+    },
+    {
+      old_text: "function oldName()",
+      new_text: "function newName()",
+      expected_replacements: 1
+    }
+  ],
+  backup: true
+});
+```
+
+### Key Benefits
+- **Speed**: Process multiple edits in one operation instead of multiple calls
+- **Safety**: Each edit includes safety checks and expected replacement counts
+- **Efficiency**: Reduced overhead for large-scale code refactoring
+- **Reliability**: Maintains backup and error recovery features
+
+### Technical Details
+- Sequential processing ensures each edit applies to the current state
+- Detailed edit results with success/failure status for each operation
+- Maintains all safety features of `fast_edit_block`
+- Backward compatible with existing tools
+
 ## v2.7.0 - Configurable Backup System
 
 ### New Features

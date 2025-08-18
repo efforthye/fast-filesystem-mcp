@@ -259,7 +259,7 @@ async function getOriginalFileSize(filePath: string): Promise<number> {
 const server = new Server(
   {
     name: 'fast-filesystem',
-    version: '2.7.0',
+    version: '2.8.0',
   },
   {
     capabilities: {
@@ -496,6 +496,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
+        name: 'fast_edit_blocks',
+        description: '여러개의 정교한 블록 편집을 한 번에 처리 (fast_edit_block 배열)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: '편집할 파일 경로' },
+            edits: {
+              type: 'array',
+              description: '정교한 블록 편집 목록',
+              items: {
+                type: 'object',
+                properties: {
+                  old_text: { type: 'string', description: '정확히 매칭할 기존 텍스트' },
+                  new_text: { type: 'string', description: '새로운 텍스트' },
+                  expected_replacements: { type: 'number', description: '예상 교체 횟수', default: 1 }
+                },
+                required: ['old_text', 'new_text']
+              }
+            },
+            backup: { type: 'boolean', description: '백업 생성', default: true }
+          },
+          required: ['path', 'edits']
+        }
+      },
+      {
         name: 'fast_extract_lines',
         description: '파일에서 특정 라인들을 추출합니다',
         inputSchema: {
@@ -582,6 +607,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'fast_edit_multiple_blocks':
         result = await handleEditMultipleBlocks(args);
         break;
+      case 'fast_edit_blocks':
+        result = await handleEditBlocks(args);
+        break;
       case 'fast_extract_lines':
         result = await handleExtractLines(args);
         break;
@@ -617,7 +645,7 @@ async function handleListAllowedDirectories() {
     },
     server_info: {
       name: 'fast-filesystem',
-      version: '2.7.0',
+      version: '2.8.0',
       features: ['emoji-guidelines', 'large-file-writing', 'smart-recommendations', 'configurable-backup'],
       emoji_policy: 'Emojis not recommended in all file types',
       backup_enabled: CREATE_BACKUP_FILES,
@@ -1406,7 +1434,7 @@ function getMimeType(filePath: string): string {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Fast Filesystem MCP Server v2.7.0 running on stdio (with configurable backup feature)');
+  console.error('Fast Filesystem MCP Server v2.8.0 running on stdio (with configurable backup feature)');
 }
 
 // RegExp escape 함수
@@ -1935,6 +1963,127 @@ async function handleSearchAndReplace(args: any) {
         await fs.copyFile(backupPath, safePath_resolved);
       } catch {
         // 복구 실패
+      }
+    }
+    throw error;
+  }
+}
+
+// 여러개의 정교한 블록 편집을 한 번에 처리하는 핸들러
+async function handleEditBlocks(args: any) {
+  const { path: filePath, edits, backup = true } = args;
+  
+  const safePath_resolved = safePath(filePath);
+  
+  // 파일 존재 확인
+  let fileExists = true;
+  try {
+    await fs.access(safePath_resolved);
+  } catch {
+    fileExists = false;
+    throw new Error(`File does not exist: ${safePath_resolved}`);
+  }
+  
+  const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
+  const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
+  
+  // 백업 생성 (설정에 따라)
+  if (backup && CREATE_BACKUP_FILES) {
+    await fs.copyFile(safePath_resolved, backupPath!);
+  }
+  
+  try {
+    let modifiedContent = originalContent;
+    let totalChanges = 0;
+    const editResults: any[] = [];
+    
+    // 각 편집을 순차적으로 처리
+    for (let i = 0; i < edits.length; i++) {
+      const edit = edits[i];
+      const { old_text, new_text, expected_replacements = 1 } = edit;
+      
+      if (!old_text || new_text === undefined) {
+        editResults.push({
+          edit_index: i + 1,
+          old_text: old_text?.substring(0, 50) || '',
+          status: 'skipped - invalid parameters',
+          occurrences: 0
+        });
+        continue;
+      }
+      
+      // 정확한 문자열 매칭 확인
+      const occurrences = (modifiedContent.match(new RegExp(escapeRegExp(old_text), 'g')) || []).length;
+      
+      if (occurrences === 0) {
+        editResults.push({
+          edit_index: i + 1,
+          old_text: old_text.substring(0, 50) + (old_text.length > 50 ? '...' : ''),
+          status: 'not_found',
+          occurrences: 0,
+          expected_replacements: expected_replacements
+        });
+        continue;
+      }
+      
+      if (expected_replacements !== occurrences) {
+        editResults.push({
+          edit_index: i + 1,
+          old_text: old_text.substring(0, 50) + (old_text.length > 50 ? '...' : ''),
+          status: 'count_mismatch',
+          occurrences: occurrences,
+          expected_replacements: expected_replacements,
+          warning: 'Skipped for safety - use expected_replacements to confirm exact count'
+        });
+        continue;
+      }
+      
+      // 안전 확인 완료 - 편집 실행
+      modifiedContent = modifiedContent.replace(new RegExp(escapeRegExp(old_text), 'g'), new_text);
+      totalChanges += occurrences;
+      
+      editResults.push({
+        edit_index: i + 1,
+        old_text: old_text.substring(0, 50) + (old_text.length > 50 ? '...' : ''),
+        new_text: new_text.substring(0, 50) + (new_text.length > 50 ? '...' : ''),
+        status: 'success',
+        occurrences: occurrences,
+        expected_replacements: expected_replacements
+      });
+    }
+    
+    // 수정된 내용 저장 (변경사항이 있는 경우에만)
+    if (totalChanges > 0) {
+      await fs.writeFile(safePath_resolved, modifiedContent, 'utf-8');
+    }
+    
+    const stats = await fs.stat(safePath_resolved);
+    const originalLines = originalContent.split('\n').length;
+    const newLines = modifiedContent.split('\n').length;
+    
+    return {
+      message: `Multiple block edits processed successfully`,
+      path: safePath_resolved,
+      total_edits: edits.length,
+      successful_edits: editResults.filter(r => r.status === 'success').length,
+      total_changes: totalChanges,
+      original_lines: originalLines,
+      new_lines: newLines,
+      edit_results: editResults,
+      backup_created: backupPath,
+      backup_enabled: CREATE_BACKUP_FILES,
+      size: stats.size,
+      size_readable: formatSize(stats.size),
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    // 에러 시 백업에서 복구
+    if (backup && CREATE_BACKUP_FILES && backupPath) {
+      try {
+        await fs.copyFile(backupPath, safePath_resolved);
+      } catch {
+        // 복구 실패는 무시
       }
     }
     throw error;
