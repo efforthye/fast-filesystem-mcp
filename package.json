@@ -1,6 +1,6 @@
 {
   "name": "fast-filesystem-mcp",
-  "version": "3.3.2",
+  "version": "3.3.3",
   "description": "Fast Filesystem MCP Server - Advanced file operations with Auto-Chunking, Sequential Reading, complex file operations (copy, move, delete, batch, compress), optimized for Claude Desktop",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
