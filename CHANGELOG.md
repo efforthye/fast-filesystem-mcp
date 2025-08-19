@@ -3,7 +3,7 @@
 
 ## v3.1.0 - Advanced File Operations & Complex File Tasks
 
-### 🚀 Major New Features - Complex File Operations
+### Major New Features - Complex File Operations
 
 #### **File Management Operations**
 - **fast_copy_file**: Copy files and directories with advanced options

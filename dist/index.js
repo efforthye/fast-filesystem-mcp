@@ -201,7 +201,7 @@ async function getOriginalFileSize(filePath) {
 // MCP 서버 생성
 const server = new Server({
     name: 'fast-filesystem',
-    version: '3.2.1',
+    version: '3.2.4',
 }, {
     capabilities: {
         tools: {},
@@ -236,6 +236,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         auto_chunk: { type: 'boolean', description: '자동 청킹 활성화', default: true }
                     },
                     required: ['path']
+                }
+            },
+            {
+                name: 'fast_read_multiple_files',
+                description: '여러 파일의 내용을 동시에 읽습니다',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        paths: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '읽을 파일 경로들'
+                        }
+                    },
+                    required: ['paths']
                 }
             },
             {
@@ -702,6 +717,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             case 'fast_read_file':
                 result = await handleReadFileWithAutoChunking(args);
                 break;
+            case 'fast_read_multiple_files':
+                result = await handleReadMultipleFiles(args);
+                break;
             case 'fast_write_file':
                 result = await handleWriteFile(args);
                 break;
@@ -799,7 +817,7 @@ async function handleListAllowedDirectories() {
         },
         server_info: {
             name: 'fast-filesystem',
-            version: '2.8.1',
+            version: '3.2.4',
             features: ['emoji-guidelines', 'large-file-writing', 'smart-recommendations', 'configurable-backup'],
             emoji_policy: 'Emojis not recommended in all file types',
             backup_enabled: CREATE_BACKUP_FILES,
@@ -886,6 +904,118 @@ async function handleReadFile(args) {
         truncated: result.truncated,
         has_more: start_offset + bytesRead < stats.size,
         path: safePath_resolved
+    };
+}
+// 여러 파일을 한번에 읽는 핸들러
+async function handleReadMultipleFiles(args) {
+    const { paths = [] } = args;
+    if (!Array.isArray(paths) || paths.length === 0) {
+        throw new Error('paths parameter must be a non-empty array');
+    }
+    const results = [];
+    const errors = [];
+    let totalSuccessful = 0;
+    let totalErrors = 0;
+    // 각 파일을 병렬로 읽기
+    const readPromises = paths.map(async (filePath, index) => {
+        try {
+            const safePath_resolved = safePath(filePath);
+            const stats = await fs.stat(safePath_resolved);
+            if (!stats.isFile()) {
+                throw new Error('Path is not a file');
+            }
+            // 이미지 파일 처리
+            const ext = path.extname(safePath_resolved).toLowerCase();
+            const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
+            if (imageExtensions.includes(ext)) {
+                return {
+                    path: safePath_resolved,
+                    name: path.basename(safePath_resolved),
+                    type: 'image',
+                    content: '[IMAGE FILE - Content not displayed]',
+                    size: stats.size,
+                    size_readable: formatSize(stats.size),
+                    modified: stats.mtime.toISOString(),
+                    extension: ext,
+                    mime_type: getMimeType(safePath_resolved),
+                    encoding: 'binary',
+                    index: index
+                };
+            }
+            // 텍스트 파일의 경우 크기 제한 확인
+            const maxFileSize = 1024 * 1024; // 1MB 제한
+            let content;
+            let truncated = false;
+            if (stats.size > maxFileSize) {
+                // 큰 파일은 처음 부분만 읽기
+                const fileHandle = await fs.open(safePath_resolved, 'r');
+                const buffer = Buffer.alloc(maxFileSize);
+                const { bytesRead } = await fileHandle.read(buffer, 0, maxFileSize, 0);
+                await fileHandle.close();
+                content = buffer.subarray(0, bytesRead).toString('utf-8');
+                truncated = true;
+            }
+            else {
+                // 작은 파일은 전체 읽기
+                content = await fs.readFile(safePath_resolved, 'utf-8');
+            }
+            return {
+                path: safePath_resolved,
+                name: path.basename(safePath_resolved),
+                type: 'text',
+                content: content,
+                size: stats.size,
+                size_readable: formatSize(stats.size),
+                modified: stats.mtime.toISOString(),
+                created: stats.birthtime.toISOString(),
+                extension: ext,
+                mime_type: getMimeType(safePath_resolved),
+                encoding: 'utf-8',
+                truncated: truncated,
+                truncated_at: truncated ? maxFileSize : null,
+                index: index
+            };
+        }
+        catch (error) {
+            return {
+                path: filePath,
+                name: path.basename(filePath),
+                type: 'error',
+                content: null,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                index: index
+            };
+        }
+    });
+    // 모든 파일 읽기 완료 대기
+    const fileResults = await Promise.all(readPromises);
+    // 결과 분류
+    fileResults.forEach(result => {
+        if (result.type === 'error') {
+            errors.push(result);
+            totalErrors++;
+        }
+        else {
+            results.push(result);
+            totalSuccessful++;
+        }
+    });
+    // 결과를 원래 순서대로 정렬
+    results.sort((a, b) => a.index - b.index);
+    errors.sort((a, b) => a.index - b.index);
+    return {
+        message: 'Multiple files read completed',
+        total_files: paths.length,
+        successful: totalSuccessful,
+        errors: totalErrors,
+        files: results,
+        failed_files: errors,
+        performance: {
+            parallel_read: true,
+            max_file_size_mb: 1,
+            truncation_applied: results.some(r => r.truncated)
+        },
+        timestamp: new Date().toISOString()
     };
 }
 async function handleWriteFile(args) {
@@ -1762,7 +1892,7 @@ function getMimeType(filePath) {
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error('Fast Filesystem MCP Server v3.2.1 running on stdio (with advanced safe editing features)');
+    console.error('Fast Filesystem MCP Server v3.2.4 running on stdio (with advanced safe editing features)');
 }
 // RegExp escape 함수
 function escapeRegExp(string) {
@@ -2136,7 +2266,7 @@ async function handleEditBlocks(args) {
     // path 매개변수 필수 검증
     if (!filePath || typeof filePath !== 'string') {
         return {
-            message: "❌ Missing required parameter",
+            message: "Missing required parameter",
             error: "path_parameter_missing",
             details: "The 'path' parameter is required for batch editing operations.",
             example: {
