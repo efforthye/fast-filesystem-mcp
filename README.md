@@ -37,6 +37,13 @@ Control backup file creation behavior:
 
 **Note**: Backup files are created with timestamps (e.g., `file.txt.backup.1755485284402`) to prevent data loss during edits.
 
+## New Version Update
+- npm uninstall -g fast-filesystem-mcp
+- npm cache clean --force
+- npm install -g fast-filesystem-mcp
+- npm list -g fast-filesystem-mcp
+- fast-filesystem-mcp --version
+
 ## Features
 ### Core File Operations
 - Fast File Reading/Writing: Optimized for Claude Desktop with chunking support

@@ -240,7 +240,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'fast_read_multiple_files',
-                description: '여러 파일의 내용을 동시에 읽습니다',
+                description: '여러 파일의 내용을 동시에 읽습니다 (순차적 읽기 지원)',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -248,6 +248,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                             type: 'array',
                             items: { type: 'string' },
                             description: '읽을 파일 경로들'
+                        },
+                        continuation_tokens: {
+                            type: 'object',
+                            description: '파일별 continuation token (이전 호출에서 반환된 값)'
+                        },
+                        auto_continue: {
+                            type: 'boolean',
+                            description: '자동으로 전체 파일 읽기 (기본값: true)',
+                            default: true
+                        },
+                        chunk_size: {
+                            type: 'number',
+                            description: '청크 크기 (바이트, 기본값: 1MB)',
+                            default: 1048576
                         }
                     },
                     required: ['paths']
@@ -906,14 +920,18 @@ async function handleReadFile(args) {
         path: safePath_resolved
     };
 }
-// 여러 파일을 한번에 읽는 핸들러
+// 여러 파일을 한번에 읽는 핸들러 (순차적 읽기 지원)
 async function handleReadMultipleFiles(args) {
-    const { paths = [] } = args;
+    const { paths = [], continuation_tokens = {}, // 파일별 continuation token
+    auto_continue = true, // 자동으로 전체 파일 읽기
+    chunk_size = 1024 * 1024 // 1MB 청크 크기
+     } = args;
     if (!Array.isArray(paths) || paths.length === 0) {
         throw new Error('paths parameter must be a non-empty array');
     }
     const results = [];
     const errors = [];
+    const continuationData = {};
     let totalSuccessful = 0;
     let totalErrors = 0;
     // 각 파일을 병렬로 읽기
@@ -942,22 +960,63 @@ async function handleReadMultipleFiles(args) {
                     index: index
                 };
             }
-            // 텍스트 파일의 경우 크기 제한 확인
-            const maxFileSize = 1024 * 1024; // 1MB 제한
-            let content;
-            let truncated = false;
-            if (stats.size > maxFileSize) {
-                // 큰 파일은 처음 부분만 읽기
+            // 기존 continuation token 확인
+            const existingToken = continuation_tokens[safePath_resolved];
+            let startOffset = existingToken ? existingToken.next_offset : 0;
+            // 텍스트 파일 읽기 (청킹 지원)
+            let content = '';
+            let totalBytesRead = 0;
+            let hasMore = false;
+            let nextOffset = startOffset;
+            if (auto_continue) {
+                // 자동으로 전체 파일 읽기 (여러 청크)
                 const fileHandle = await fs.open(safePath_resolved, 'r');
-                const buffer = Buffer.alloc(maxFileSize);
-                const { bytesRead } = await fileHandle.read(buffer, 0, maxFileSize, 0);
-                await fileHandle.close();
-                content = buffer.subarray(0, bytesRead).toString('utf-8');
-                truncated = true;
+                try {
+                    while (nextOffset < stats.size) {
+                        const remainingBytes = stats.size - nextOffset;
+                        const currentChunkSize = Math.min(chunk_size, remainingBytes);
+                        const buffer = Buffer.alloc(currentChunkSize);
+                        const { bytesRead } = await fileHandle.read(buffer, 0, currentChunkSize, nextOffset);
+                        if (bytesRead === 0)
+                            break;
+                        const chunkContent = buffer.subarray(0, bytesRead).toString('utf-8');
+                        content += chunkContent;
+                        totalBytesRead += bytesRead;
+                        nextOffset += bytesRead;
+                        // 매우 큰 파일의 경우 일정 크기에서 중단 (5MB 제한)
+                        if (totalBytesRead >= 5 * 1024 * 1024) {
+                            hasMore = nextOffset < stats.size;
+                            break;
+                        }
+                    }
+                }
+                finally {
+                    await fileHandle.close();
+                }
             }
             else {
-                // 작은 파일은 전체 읽기
-                content = await fs.readFile(safePath_resolved, 'utf-8');
+                // 단일 청크만 읽기
+                const fileHandle = await fs.open(safePath_resolved, 'r');
+                const buffer = Buffer.alloc(chunk_size);
+                const { bytesRead } = await fileHandle.read(buffer, 0, chunk_size, startOffset);
+                await fileHandle.close();
+                content = buffer.subarray(0, bytesRead).toString('utf-8');
+                totalBytesRead = bytesRead;
+                nextOffset = startOffset + bytesRead;
+                hasMore = nextOffset < stats.size;
+            }
+            // Continuation token 생성 (더 읽을 내용이 있는 경우)
+            let continuationToken = null;
+            if (hasMore) {
+                continuationToken = {
+                    file_path: safePath_resolved,
+                    next_offset: nextOffset,
+                    total_size: stats.size,
+                    read_so_far: nextOffset,
+                    chunk_size: chunk_size,
+                    progress_percent: ((nextOffset / stats.size) * 100).toFixed(2) + '%'
+                };
+                continuationData[safePath_resolved] = continuationToken;
             }
             return {
                 path: safePath_resolved,
@@ -971,8 +1030,13 @@ async function handleReadMultipleFiles(args) {
                 extension: ext,
                 mime_type: getMimeType(safePath_resolved),
                 encoding: 'utf-8',
-                truncated: truncated,
-                truncated_at: truncated ? maxFileSize : null,
+                bytes_read: totalBytesRead,
+                start_offset: startOffset,
+                end_offset: nextOffset,
+                is_complete: !hasMore,
+                has_more: hasMore,
+                continuation_token: continuationToken,
+                auto_continued: auto_continue && startOffset === 0,
                 index: index
             };
         }
@@ -1003,17 +1067,33 @@ async function handleReadMultipleFiles(args) {
     // 결과를 원래 순서대로 정렬
     results.sort((a, b) => a.index - b.index);
     errors.sort((a, b) => a.index - b.index);
+    // 통계 계산
+    const incompleteFiles = results.filter(r => r.has_more);
+    const completedFiles = results.filter(r => r.is_complete);
     return {
         message: 'Multiple files read completed',
         total_files: paths.length,
         successful: totalSuccessful,
         errors: totalErrors,
+        completed_files: completedFiles.length,
+        incomplete_files: incompleteFiles.length,
         files: results,
         failed_files: errors,
+        continuation_data: Object.keys(continuationData).length > 0 ? continuationData : null,
+        continuation_guide: incompleteFiles.length > 0 ? {
+            message: "Some files were not fully read",
+            next_request_example: {
+                paths: incompleteFiles.map(f => f.path),
+                continuation_tokens: continuationData,
+                auto_continue: false
+            },
+            tip: "Set auto_continue: false to read files in smaller chunks"
+        } : null,
         performance: {
             parallel_read: true,
-            max_file_size_mb: 1,
-            truncation_applied: results.some(r => r.truncated)
+            chunk_size_mb: chunk_size / (1024 * 1024),
+            auto_continue_enabled: auto_continue,
+            max_file_size_limit_mb: auto_continue ? 5 : 1
         },
         timestamp: new Date().toISOString()
     };
