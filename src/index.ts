@@ -2467,7 +2467,7 @@ async function handleEditBlocks(args: any) {
   // path 매개변수 필수 검증
   if (!filePath || typeof filePath !== 'string') {
     return {
-      message: "❌ Missing required parameter",
+      message: "Missing required parameter",
       error: "path_parameter_missing", 
       details: "The 'path' parameter is required for batch editing operations.",
       example: {
