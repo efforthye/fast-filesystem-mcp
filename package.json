@@ -1,6 +1,6 @@
 {
   "name": "fast-filesystem-mcp",
-  "version": "3.3.1",
+  "version": "3.3.2",
   "description": "Fast Filesystem MCP Server - Advanced file operations with Auto-Chunking, Sequential Reading, complex file operations (copy, move, delete, batch, compress), optimized for Claude Desktop",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -47,7 +47,7 @@
     "email": "efforthye@gmail.com",
     "url": "https://github.com/efforthye"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/efforthye/fast-filesystem-mcp.git"
