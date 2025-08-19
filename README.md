@@ -31,19 +31,32 @@ Add to your Claude Desktop config.
 ```
 
 ### Backup Configuration
-Control backup file creation behavior:
+Control backup file creation behavior.
 - `CREATE_BACKUP_FILES=false` (default): Disables backup file creation to reduce clutter  
 - `CREATE_BACKUP_FILES=true`: Creates backup files before modifications
 
 **Note**: Backup files are created with timestamps (e.g., `file.txt.backup.1755485284402`) to prevent data loss during edits.
 
 ## New Version Update
-- npm uninstall -g fast-filesystem-mcp
-- npm cache clean --force
-- pnpm store prune
-- npm install -g fast-filesystem-mcp
-- npm list -g fast-filesystem-mcp
-- fast-filesystem-mcp --version
+To update to the latest version, follow these steps.
+1. **Uninstall previous version**
+   ```bash
+   npm uninstall -g fast-filesystem-mcp
+   ```
+2. **Clean cache and dependencies**
+   ```bash
+   npm cache clean --force
+   pnpm store prune
+   ```
+3. **Install latest version**
+   ```bash
+   npm install -g fast-filesystem-mcp
+   ```
+4. **Verify installation**
+   ```bash
+   npm list -g fast-filesystem-mcp
+   fast-filesystem-mcp --version
+   ```
 
 ## Features
 ### Core File Operations
@@ -67,56 +80,68 @@ Control backup file creation behavior:
 - Progress Tracking: Real-time progress monitoring for large operations
 
 ## Available Tools
-
 ### File Operations
-- `fast_read_file` - Read files with chunking support
-- `fast_read_multiple_files` - Read multiple files simultaneously with sequential reading support
-- `fast_write_file` - Write or modify files
-- `fast_large_write_file` - Stream-based writing for large files
-- `fast_get_file_info` - Get detailed file information
+| Tool | Description |
+|------|-------------|
+| `fast_read_file` | Read files with chunking support |
+| `fast_read_multiple_files` | Read multiple files simultaneously with sequential reading support |
+| `fast_write_file` | Write or modify files |
+| `fast_large_write_file` | Stream-based writing for large files |
+| `fast_get_file_info` | Get detailed file information |
 
 ### Complex File Management
-- `fast_copy_file` - Copy files and directories with advanced options
-- `fast_move_file` - Move/rename files and directories safely
-- `fast_delete_file` - Delete files and directories with protection
-- `fast_batch_file_operations` - Execute multiple file operations in sequence
+| Tool | Description |
+|------|-------------|
+| `fast_copy_file` | Copy files and directories with advanced options |
+| `fast_move_file` | Move/rename files and directories safely |
+| `fast_delete_file` | Delete files and directories with protection |
+| `fast_batch_file_operations` | Execute multiple file operations in sequence |
 
 ### Archive Management
-- `fast_compress_files` - Create compressed archives (tar, tar.gz, tar.bz2)
-- `fast_extract_archive` - Extract compressed archives with options
+| Tool | Description |
+|------|-------------|
+| `fast_compress_files` | Create compressed archives (tar, tar.gz, tar.bz2) |
+| `fast_extract_archive` | Extract compressed archives with options |
 
 ### Directory Synchronization 
-- `fast_sync_directories` - Advanced directory synchronization with multiple modes
+| Tool | Description |
+|------|-------------|
+| `fast_sync_directories` | Advanced directory synchronization with multiple modes |
 
 ### Advanced Editing Tools
-- `fast_edit_file` - Precise line-based file editing with multiple modes
-- `fast_edit_block` - Safe block editing with exact string matching
-- `fast_edit_blocks` - Batch block editing for multiple precise changes
-- `fast_edit_multiple_blocks` - Edit multiple sections in a single operation
-- `fast_extract_lines` - Extract specific lines or ranges from files
+| Tool | Description |
+|------|-------------|
+| `fast_edit_file` | Precise line-based file editing with multiple modes |
+| `fast_edit_block` | Safe block editing with exact string matching |
+| `fast_edit_blocks` | Batch block editing for multiple precise changes |
+| `fast_edit_multiple_blocks` | Edit multiple sections in a single operation |
+| `fast_extract_lines` | Extract specific lines or ranges from files |
 
 ### Directory Operations
-- `fast_list_directory` - List directory contents with pagination
-- `fast_create_directory` - Create directories recursively
-- `fast_get_directory_tree` - Get directory tree structure
+| Tool | Description |
+|------|-------------|
+| `fast_list_directory` | List directory contents with pagination |
+| `fast_create_directory` | Create directories recursively |
+| `fast_get_directory_tree` | Get directory tree structure |
 
 ### Search Operations
-- `fast_search_files` - Search files by name or content
-- `fast_search_code` - Advanced code search with ripgrep integration
-- `fast_find_large_files` - Find large files in directories
+| Tool | Description |
+|------|-------------|
+| `fast_search_files` | Search files by name or content |
+| `fast_search_code` | Advanced code search with ripgrep integration |
+| `fast_find_large_files` | Find large files in directories |
 
 ### System Operations
-- `fast_get_disk_usage` - Check disk usage information
-- `fast_list_allowed_directories` - List allowed directories
+| Tool | Description |
+|------|-------------|
+| `fast_get_disk_usage` | Check disk usage information |
+| `fast_list_allowed_directories` | List allowed directories |
 
 ## Editing Tools
-
 ### Precise File Editing
-
-The fast-filesystem MCP now includes powerful editing tools for source code and text files:
-
+The fast-filesystem MCP now includes powerful editing tools for source code and text files.
 #### `fast_edit_file` - Single Block Editing
-Supports multiple editing modes:
+Supports multiple editing modes.
 - **replace**: Replace text or entire lines
 - **replace_range**: Replace multiple lines at once  
 - **insert_before**: Insert content before specified line
@@ -137,8 +162,7 @@ Supports multiple editing modes:
 ```
 
 #### `fast_edit_multiple_blocks` - Batch Editing
-Edit multiple parts of a file in a single operation:
-
+Edit multiple parts of a file in a single operation.
 ```json
 {
   "tool": "fast_edit_multiple_blocks", 
@@ -162,8 +186,7 @@ Edit multiple parts of a file in a single operation:
 ```
 
 #### `fast_extract_lines` - Line Extraction
-Extract specific lines by number, range, or pattern:
-
+Extract specific lines by number, range, or pattern.
 ```json
 {
   "tool": "fast_extract_lines",
@@ -176,7 +199,7 @@ Extract specific lines by number, range, or pattern:
 ```
 
 #### `fast_search_and_replace` - Advanced Replace
-Powerful search and replace with regex support:
+Powerful search and replace with regex support.
 
 ```json
 {
