@@ -849,14 +849,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'fast_edit_block':
         result = await handleEditBlockSafe(args);
         break;
-      case 'fast_safe_edit':
-        result = await handleSafeEdit(args);
+      case 'fast_edit_blocks':
+        result = await handleEditBlocks(args);
         break;
       case 'fast_edit_multiple_blocks':
         result = await handleEditMultipleBlocks(args);
         break;
-      case 'fast_edit_blocks':
-        result = await handleEditBlocks(args);
+      case 'fast_safe_edit':
+        result = await handleSafeEdit(args);
         break;
       case 'fast_extract_lines':
         result = await handleExtractLines(args);
@@ -2503,16 +2503,48 @@ async function handleEditBlock(args: any) {
   }
 }
 
+// 여러개의 라인 기반 편집 (안전한 로직으로 업그레이드)
 async function handleEditMultipleBlocks(args: any) {
   const { path: filePath, edits, backup = true } = args;
   
+  // path 매개변수 필수 검증
+  if (!filePath || typeof filePath !== 'string') {
+    return {
+      message: "Missing required parameter",
+      error: "path_parameter_missing",
+      details: "The 'path' parameter is required for multiple block editing operations.",
+      example: {
+        correct_usage: "fast_edit_multiple_blocks({ path: '/path/to/file.txt', edits: [...] })",
+        missing_parameter: "path"
+      },
+      suggestions: [
+        "Add the 'path' parameter with a valid file path",
+        "Ensure the path is a string value",
+        "Use an absolute path for better reliability"
+      ],
+      status: "parameter_error",
+      timestamp: new Date().toISOString()
+    };
+  }
+  
   const safePath_resolved = safePath(filePath);
-  const content = await fs.readFile(safePath_resolved, 'utf-8');
-  const lines = content.split('\n');
+  
+  // 파일 존재 확인
+  let fileExists = true;
+  try {
+    await fs.access(safePath_resolved);
+  } catch {
+    fileExists = false;
+    throw new Error(`File does not exist: ${safePath_resolved}`);
+  }
+  
+  const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
+  const lines = originalContent.split('\n');
   let modifiedLines = [...lines];
   
   const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
   let totalChanges = 0;
+  const editResults: any[] = [];
   
   // 백업 생성 (설정에 따라)
   if (backup && CREATE_BACKUP_FILES) {
@@ -2527,75 +2559,226 @@ async function handleEditMultipleBlocks(args: any) {
       return lineB - lineA;
     });
     
-    for (const edit of sortedEdits) {
-      const { old_text, new_text, line_number, mode = 'replace' } = edit;
+    for (let i = 0; i < sortedEdits.length; i++) {
+      const edit = sortedEdits[i];
+      const { 
+        old_text, 
+        new_text, 
+        line_number, 
+        mode = 'replace',
+        expected_replacements = 1,
+        word_boundary = false,
+        case_sensitive = true
+      } = edit;
       let changesCount = 0;
+      let editResult: any = {
+        edit_index: i + 1,
+        mode: mode,
+        line_number: line_number,
+        status: 'unknown'
+      };
       
-      switch (mode) {
-        case 'replace':
-          if (old_text && new_text !== undefined) {
-            for (let i = 0; i < modifiedLines.length; i++) {
-              if (modifiedLines[i].includes(old_text)) {
-                modifiedLines[i] = modifiedLines[i].replace(old_text, new_text);
+      try {
+        switch (mode) {
+          case 'replace':
+            if (old_text && new_text !== undefined) {
+              // handleEditBlockSafe 스타일의 안전한 텍스트 교체
+              const currentContent = modifiedLines.join('\n');
+              
+              // 위험 분석
+              const riskAnalysis = analyzeEditRisk(old_text, new_text, currentContent, {
+                word_boundary,
+                case_sensitive
+              });
+              
+              // 매칭 패턴 준비
+              let searchPattern = old_text;
+              let flags = case_sensitive ? 'g' : 'gi';
+              
+              if (word_boundary) {
+                searchPattern = `\\b${escapeRegExp(old_text)}\\b`;
+              } else {
+                searchPattern = escapeRegExp(old_text);
+              }
+              
+              const regex = new RegExp(searchPattern, flags);
+              const occurrences = (currentContent.match(regex) || []).length;
+              
+              if (occurrences === 0) {
+                editResult = {
+                  ...editResult,
+                  old_text: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+                  expected_replacements: expected_replacements,
+                  actual_occurrences: 0,
+                  status: 'not_found',
+                  risk_analysis: riskAnalysis
+                };
+              } else if (expected_replacements !== occurrences) {
+                editResult = {
+                  ...editResult,
+                  old_text: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+                  expected_replacements: expected_replacements,
+                  actual_occurrences: occurrences,
+                  status: 'count_mismatch',
+                  safety_info: 'Use expected_replacements parameter to confirm the exact number of changes',
+                  risk_analysis: riskAnalysis
+                };
+              } else {
+                // 안전 확인 완료 - 편집 실행
+                const modifiedContent = currentContent.replace(regex, new_text);
+                modifiedLines = modifiedContent.split('\n');
+                changesCount = occurrences;
+                
+                editResult = {
+                  ...editResult,
+                  old_text_preview: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+                  new_text_preview: new_text.length > 100 ? new_text.substring(0, 100) + '...' : new_text,
+                  status: 'success',
+                  changes_made: occurrences,
+                  expected_replacements: expected_replacements,
+                  actual_replacements: occurrences,
+                  risk_analysis: riskAnalysis,
+                  word_boundary_used: word_boundary,
+                  case_sensitive_used: case_sensitive
+                };
+              }
+            } else if (line_number && new_text !== undefined) {
+              // 라인 기반 교체 (안전 검사 포함)
+              const idx = line_number - 1;
+              if (idx >= 0 && idx < modifiedLines.length) {
+                const originalLine = modifiedLines[idx];
+                modifiedLines[idx] = new_text;
                 changesCount++;
+                
+                editResult = {
+                  ...editResult,
+                  original_line: originalLine,
+                  new_line: new_text,
+                  status: 'success',
+                  changes_made: 1
+                };
+              } else {
+                editResult = {
+                  ...editResult,
+                  status: 'invalid_line_number',
+                  error: `Line number ${line_number} is out of range (1-${modifiedLines.length})`
+                };
               }
             }
-          } else if (line_number && new_text !== undefined) {
-            const idx = line_number - 1;
-            if (idx >= 0 && idx < modifiedLines.length) {
-              modifiedLines[idx] = new_text;
-              changesCount++;
+            break;
+            
+          case 'insert_before':
+            if (line_number && new_text !== undefined) {
+              const idx = line_number - 1;
+              if (idx >= 0 && idx <= modifiedLines.length) {
+                modifiedLines.splice(idx, 0, new_text);
+                changesCount++;
+                
+                editResult = {
+                  ...editResult,
+                  inserted_line: new_text,
+                  status: 'success',
+                  changes_made: 1
+                };
+              } else {
+                editResult = {
+                  ...editResult,
+                  status: 'invalid_line_number',
+                  error: `Line number ${line_number} is out of range for insertion`
+                };
+              }
             }
-          }
-          break;
-          
-        case 'insert_before':
-          if (line_number && new_text !== undefined) {
-            const idx = line_number - 1;
-            if (idx >= 0) {
-              modifiedLines.splice(idx, 0, new_text);
-              changesCount++;
+            break;
+            
+          case 'insert_after':
+            if (line_number && new_text !== undefined) {
+              const idx = line_number;
+              if (idx >= 0 && idx <= modifiedLines.length) {
+                modifiedLines.splice(idx, 0, new_text);
+                changesCount++;
+                
+                editResult = {
+                  ...editResult,
+                  inserted_line: new_text,
+                  status: 'success',
+                  changes_made: 1
+                };
+              } else {
+                editResult = {
+                  ...editResult,
+                  status: 'invalid_line_number',
+                  error: `Line number ${line_number} is out of range for insertion`
+                };
+              }
             }
-          }
-          break;
-          
-        case 'insert_after':
-          if (line_number && new_text !== undefined) {
-            const idx = line_number;
-            if (idx >= 0) {
-              modifiedLines.splice(idx, 0, new_text);
-              changesCount++;
+            break;
+            
+          case 'delete_line':
+            if (line_number) {
+              const idx = line_number - 1;
+              if (idx >= 0 && idx < modifiedLines.length) {
+                const deletedLine = modifiedLines[idx];
+                modifiedLines.splice(idx, 1);
+                changesCount++;
+                
+                editResult = {
+                  ...editResult,
+                  deleted_line: deletedLine,
+                  status: 'success',
+                  changes_made: 1
+                };
+              } else {
+                editResult = {
+                  ...editResult,
+                  status: 'invalid_line_number',
+                  error: `Line number ${line_number} is out of range for deletion`
+                };
+              }
             }
-          }
-          break;
-          
-        case 'delete_line':
-          if (line_number) {
-            const idx = line_number - 1;
-            if (idx >= 0 && idx < modifiedLines.length) {
-              modifiedLines.splice(idx, 1);
-              changesCount++;
-            }
-          }
-          break;
+            break;
+            
+          default:
+            editResult = {
+              ...editResult,
+              status: 'unsupported_mode',
+              error: `Unsupported edit mode: ${mode}`
+            };
+        }
+        
+        totalChanges += changesCount;
+        editResults.push(editResult);
+        
+      } catch (error) {
+        editResults.push({
+          ...editResult,
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
       }
-      
-      totalChanges += changesCount;
     }
     
-    // 수정된 내용 저장
-    const newContent = modifiedLines.join('\n');
-    await fs.writeFile(safePath_resolved, newContent, 'utf-8');
+    // 수정된 내용 저장 (변경사항이 있는 경우에만)
+    if (totalChanges > 0) {
+      const newContent = modifiedLines.join('\n');
+      
+      // 디렉토리 생성
+      const dir = path.dirname(safePath_resolved);
+      await fs.mkdir(dir, { recursive: true });
+      
+      await fs.writeFile(safePath_resolved, newContent, 'utf-8');
+    }
     
     const stats = await fs.stat(safePath_resolved);
     
     return {
-      message: `Multiple blocks edited successfully`,
+      message: `Safe multiple blocks edited successfully`,
       path: safePath_resolved,
       total_edits: edits.length,
+      successful_edits: editResults.filter(r => r.status === 'success').length,
       total_changes: totalChanges,
       original_lines: lines.length,
       new_lines: modifiedLines.length,
+      edit_results: editResults,
       backup_created: backupPath,
       backup_enabled: CREATE_BACKUP_FILES,
       size: stats.size,
@@ -2691,7 +2874,7 @@ async function handleExtractLines(args: any) {
 
 
 
-// 여러개의 정교한 블록 편집을 한 번에 처리하는 핸들러
+// 여러개의 정교한 블록 편집을 한 번에 처리하는 핸들러 (handleEditBlockSafe와 동일한 로직 사용)
 async function handleEditBlocks(args: any) {
   const { path: filePath, edits, backup = true } = args;
   
@@ -2739,10 +2922,16 @@ async function handleEditBlocks(args: any) {
     let totalChanges = 0;
     const editResults: any[] = [];
     
-    // 각 편집을 순차적으로 처리
+    // 각 편집을 순차적으로 처리 (handleEditBlockSafe와 동일한 로직)
     for (let i = 0; i < edits.length; i++) {
       const edit = edits[i];
-      const { old_text, new_text, expected_replacements = 1 } = edit;
+      const { 
+        old_text, 
+        new_text, 
+        expected_replacements = 1,
+        word_boundary = false,
+        case_sensitive = true
+      } = edit;
       
       if (!old_text || new_text === undefined) {
         editResults.push({
@@ -2754,16 +2943,34 @@ async function handleEditBlocks(args: any) {
         continue;
       }
       
-      // 정확한 문자열 매칭 확인
-      const occurrences = (modifiedContent.match(new RegExp(escapeRegExp(old_text), 'g')) || []).length;
+      // handleEditBlockSafe와 동일한 위험 분석
+      const riskAnalysis = analyzeEditRisk(old_text, new_text, modifiedContent, {
+        word_boundary,
+        case_sensitive
+      });
+      
+      // handleEditBlockSafe와 동일한 매칭 패턴 준비
+      let searchPattern = old_text;
+      let flags = case_sensitive ? 'g' : 'gi';
+      
+      if (word_boundary) {
+        // 단어 경계 추가로 부분 매칭 방지
+        searchPattern = `\\b${escapeRegExp(old_text)}\\b`;
+      } else {
+        searchPattern = escapeRegExp(old_text);
+      }
+      
+      const regex = new RegExp(searchPattern, flags);
+      const occurrences = (modifiedContent.match(regex) || []).length;
       
       if (occurrences === 0) {
         editResults.push({
           edit_index: i + 1,
-          old_text: old_text.substring(0, 50) + (old_text.length > 50 ? '...' : ''),
+          old_text: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+          expected_replacements: expected_replacements,
+          actual_occurrences: 0,
           status: 'not_found',
-          occurrences: 0,
-          expected_replacements: expected_replacements
+          risk_analysis: riskAnalysis
         });
         continue;
       }
@@ -2771,31 +2978,40 @@ async function handleEditBlocks(args: any) {
       if (expected_replacements !== occurrences) {
         editResults.push({
           edit_index: i + 1,
-          old_text: old_text.substring(0, 50) + (old_text.length > 50 ? '...' : ''),
-          status: 'count_mismatch',
-          occurrences: occurrences,
+          old_text: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
           expected_replacements: expected_replacements,
-          warning: 'Skipped for safety - use expected_replacements to confirm exact count'
+          actual_occurrences: occurrences,
+          status: 'count_mismatch',
+          safety_info: 'Use expected_replacements parameter to confirm the exact number of changes',
+          risk_analysis: riskAnalysis
         });
         continue;
       }
       
-      // 안전 확인 완료 - 편집 실행
-      modifiedContent = modifiedContent.replace(new RegExp(escapeRegExp(old_text), 'g'), new_text);
+      // 안전 확인 완료 - 편집 실행 (handleEditBlockSafe와 동일)
+      modifiedContent = modifiedContent.replace(regex, new_text);
       totalChanges += occurrences;
       
       editResults.push({
         edit_index: i + 1,
-        old_text: old_text.substring(0, 50) + (old_text.length > 50 ? '...' : ''),
-        new_text: new_text.substring(0, 50) + (new_text.length > 50 ? '...' : ''),
+        old_text_preview: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
+        new_text_preview: new_text.length > 100 ? new_text.substring(0, 100) + '...' : new_text,
         status: 'success',
-        occurrences: occurrences,
-        expected_replacements: expected_replacements
+        changes_made: occurrences,
+        expected_replacements: expected_replacements,
+        actual_replacements: occurrences,
+        risk_analysis: riskAnalysis,
+        word_boundary_used: word_boundary,
+        case_sensitive_used: case_sensitive
       });
     }
     
     // 수정된 내용 저장 (변경사항이 있는 경우에만)
     if (totalChanges > 0) {
+      // 디렉토리 생성
+      const dir = path.dirname(safePath_resolved);
+      await fs.mkdir(dir, { recursive: true });
+      
       await fs.writeFile(safePath_resolved, modifiedContent, 'utf-8');
     }
     
@@ -2804,7 +3020,7 @@ async function handleEditBlocks(args: any) {
     const newLines = modifiedContent.split('\n').length;
     
     return {
-      message: `Multiple block edits processed successfully`,
+      message: `Safe multiple block edits processed successfully`,
       path: safePath_resolved,
       total_edits: edits.length,
       successful_edits: editResults.filter(r => r.status === 'success').length,
