@@ -40,6 +40,7 @@ Control backup file creation behavior:
 ## New Version Update
 - npm uninstall -g fast-filesystem-mcp
 - npm cache clean --force
+- pnpm store prune
 - npm install -g fast-filesystem-mcp
 - npm list -g fast-filesystem-mcp
 - fast-filesystem-mcp --version
@@ -47,6 +48,7 @@ Control backup file creation behavior:
 ## Features
 ### Core File Operations
 - Fast File Reading/Writing: Optimized for Claude Desktop with chunking support
+- Sequential Reading: Read large files completely with continuation token support  
 - Large File Handling: Stream-based writing for files of any size
 - Directory Operations: Comprehensive directory listing, creation, and management
 - File Search: Name and content-based file searching with filtering
@@ -68,6 +70,7 @@ Control backup file creation behavior:
 
 ### File Operations
 - `fast_read_file` - Read files with chunking support
+- `fast_read_multiple_files` - Read multiple files simultaneously with sequential reading support
 - `fast_write_file` - Write or modify files
 - `fast_large_write_file` - Stream-based writing for large files
 - `fast_get_file_info` - Get detailed file information
@@ -105,6 +108,91 @@ Control backup file creation behavior:
 ### System Operations
 - `fast_get_disk_usage` - Check disk usage information
 - `fast_list_allowed_directories` - List allowed directories
+
+## Sequential Reading (New in v3.3.0)
+
+### `fast_read_multiple_files` - Advanced Multi-File Reading
+
+Read multiple files simultaneously with intelligent sequential reading support for large files:
+
+#### Auto-Complete Reading (Default)
+```json
+{
+  "tool": "fast_read_multiple_files",
+  "arguments": {
+    "paths": ["/path/to/large_file.txt", "/path/to/another_file.txt"],
+    "auto_continue": true
+  }
+}
+```
+- Automatically reads entire files up to 5MB
+- No truncation - complete file content guaranteed
+- Memory-safe with intelligent chunking
+
+#### Manual Chunking Control
+```json
+{
+  "tool": "fast_read_multiple_files", 
+  "arguments": {
+    "paths": ["/path/to/very_large_file.txt"],
+    "auto_continue": false,
+    "chunk_size": 1048576
+  }
+}
+```
+- Read files in controllable chunks (default: 1MB)
+- Returns continuation tokens for seamless file reading
+- Perfect for memory-constrained environments
+
+#### Continuation Reading
+```json
+{
+  "tool": "fast_read_multiple_files",
+  "arguments": {
+    "paths": ["/path/to/large_file.txt"],
+    "continuation_tokens": {
+      "/path/to/large_file.txt": {
+        "next_offset": 1048576,
+        "total_size": 5242880
+      }
+    }
+  }
+}
+```
+- Resume reading from exactly where you left off
+- Track progress with detailed metadata
+- Handle multiple files independently
+
+#### Response Format
+```json
+{
+  "files": [{
+    "path": "/path/to/file.txt",
+    "content": "...",
+    "is_complete": false,
+    "has_more": true,
+    "bytes_read": 1048576,
+    "start_offset": 0,
+    "end_offset": 1048576,
+    "continuation_token": {
+      "next_offset": 1048576,
+      "progress_percent": "20.0%",
+      "total_size": 5242880
+    }
+  }],
+  "continuation_guide": {
+    "message": "Some files were not fully read",
+    "next_request_example": { /* Ready-to-use next request */ }
+  }
+}
+```
+
+### Features
+- **Smart Memory Management**: 5MB auto-limit, 1MB chunking
+- **Progress Tracking**: Real-time reading progress with percentages
+- **Error Resilience**: Individual file failures don't affect others
+- **Parallel Processing**: Multiple files read simultaneously
+- **Continuation Support**: Seamless file reading across multiple requests
 
 ## Editing Tools
 
