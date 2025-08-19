@@ -3909,6 +3909,11 @@ async function handleEditBlockSafe(args: any) {
     case_sensitive = true
   } = args;
   
+  // path 매개변수 필수 검증
+  if (!filePath || typeof filePath !== 'string') {
+    throw new Error('The "path" parameter is required and must be a string. Please provide a valid file path.');
+  }
+  
   const safePath_resolved = safePath(filePath);
   
   // 파일 존재 확인

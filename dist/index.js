@@ -3325,6 +3325,10 @@ async function cleanupExtraFiles(sourcePath, targetPath, relativePath, results, 
 // 안전한 편집 핸들러 함수들
 async function handleEditBlockSafe(args) {
     const { path: filePath, old_text, new_text, expected_replacements = 1, backup = true, word_boundary = false, preview_only = false, case_sensitive = true } = args;
+    // path 매개변수 필수 검증
+    if (!filePath || typeof filePath !== 'string') {
+        throw new Error('The "path" parameter is required and must be a string. Please provide a valid file path.');
+    }
     const safePath_resolved = safePath(filePath);
     // 파일 존재 확인
     let fileExists = true;
