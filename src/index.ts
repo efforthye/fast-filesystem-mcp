@@ -2464,6 +2464,26 @@ async function handleExtractLines(args: any) {
 async function handleEditBlocks(args: any) {
   const { path: filePath, edits, backup = true } = args;
   
+  // path 매개변수 필수 검증
+  if (!filePath || typeof filePath !== 'string') {
+    return {
+      message: "❌ Missing required parameter",
+      error: "path_parameter_missing", 
+      details: "The 'path' parameter is required for batch editing operations.",
+      example: {
+        correct_usage: "fast_edit_blocks({ path: '/path/to/file.txt', edits: [...] })",
+        missing_parameter: "path"
+      },
+      suggestions: [
+        "Add the 'path' parameter with a valid file path",
+        "Ensure the path is a string value", 
+        "Use an absolute path for better reliability"
+      ],
+      status: "parameter_error",
+      timestamp: new Date().toISOString()
+    };
+  }
+  
   const safePath_resolved = safePath(filePath);
   
   // 파일 존재 확인
@@ -3911,7 +3931,22 @@ async function handleEditBlockSafe(args: any) {
   
   // path 매개변수 필수 검증
   if (!filePath || typeof filePath !== 'string') {
-    throw new Error('The "path" parameter is required and must be a string. Please provide a valid file path.');
+    return {
+      message: "Missing required parameter",
+      error: "path_parameter_missing",
+      details: "The 'path' parameter is required for file editing operations.",
+      example: {
+        correct_usage: "fast_edit_block({ path: '/path/to/file.txt', old_text: '...', new_text: '...' })",
+        missing_parameter: "path"
+      },
+      suggestions: [
+        "Add the 'path' parameter with a valid file path",
+        "Ensure the path is a string value",
+        "Use an absolute path for better reliability"
+      ],
+      status: "parameter_error",
+      timestamp: new Date().toISOString()
+    };
   }
   
   const safePath_resolved = safePath(filePath);

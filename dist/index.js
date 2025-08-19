@@ -2133,6 +2133,25 @@ async function handleExtractLines(args) {
 // 여러개의 정교한 블록 편집을 한 번에 처리하는 핸들러
 async function handleEditBlocks(args) {
     const { path: filePath, edits, backup = true } = args;
+    // path 매개변수 필수 검증
+    if (!filePath || typeof filePath !== 'string') {
+        return {
+            message: "❌ Missing required parameter",
+            error: "path_parameter_missing",
+            details: "The 'path' parameter is required for batch editing operations.",
+            example: {
+                correct_usage: "fast_edit_blocks({ path: '/path/to/file.txt', edits: [...] })",
+                missing_parameter: "path"
+            },
+            suggestions: [
+                "Add the 'path' parameter with a valid file path",
+                "Ensure the path is a string value",
+                "Use an absolute path for better reliability"
+            ],
+            status: "parameter_error",
+            timestamp: new Date().toISOString()
+        };
+    }
     const safePath_resolved = safePath(filePath);
     // 파일 존재 확인
     let fileExists = true;
@@ -3327,7 +3346,22 @@ async function handleEditBlockSafe(args) {
     const { path: filePath, old_text, new_text, expected_replacements = 1, backup = true, word_boundary = false, preview_only = false, case_sensitive = true } = args;
     // path 매개변수 필수 검증
     if (!filePath || typeof filePath !== 'string') {
-        throw new Error('The "path" parameter is required and must be a string. Please provide a valid file path.');
+        return {
+            message: "Missing required parameter",
+            error: "path_parameter_missing",
+            details: "The 'path' parameter is required for file editing operations.",
+            example: {
+                correct_usage: "fast_edit_block({ path: '/path/to/file.txt', old_text: '...', new_text: '...' })",
+                missing_parameter: "path"
+            },
+            suggestions: [
+                "Add the 'path' parameter with a valid file path",
+                "Ensure the path is a string value",
+                "Use an absolute path for better reliability"
+            ],
+            status: "parameter_error",
+            timestamp: new Date().toISOString()
+        };
     }
     const safePath_resolved = safePath(filePath);
     // 파일 존재 확인
