@@ -15,10 +15,15 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "npm run build",
     "clean": "rm -rf dist",
-    "publish:npm": "npm run build && npm publish",
+    "publish:npm": "npm run build && npm publish --registry=https://registry.npmjs.org",
+    "publish:github": "npm run build && npm publish --registry=https://npm.pkg.github.com",
     "version:patch": "npm version patch && npm run publish:npm",
     "version:minor": "npm version minor && npm run publish:npm",
     "version:major": "npm version major && npm run publish:npm"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   },
   "keywords": [
     "mcp",

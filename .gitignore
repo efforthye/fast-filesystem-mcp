@@ -2,3 +2,10 @@
 node_modules
 dist
 dist/*
+
+# Security - Never commit these!
+.env
+.env.local
+.npmrc.local
+*.pem
+*.key
