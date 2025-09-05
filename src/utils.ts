@@ -3,7 +3,21 @@ import { realpathSync, statSync } from 'fs';
 import path from 'path';
 
 // 상수들
-export const DEFAULT_ALLOWED_DIRECTORIES = ['/tmp', process.cwd()];
+// Align defaults with original author intent: HOME, /tmp, user roots.
+export const DEFAULT_ALLOWED_DIRECTORIES = (() => {
+  const list: string[] = [];
+  const home = process.env.HOME || process.env.USERPROFILE || '/home';
+  list.push(home);
+  list.push('/tmp');
+  if (process.platform === 'win32') {
+    // Broad user root for Windows
+    list.push('C:/Users');
+  } else {
+    list.push('/Users', '/home');
+  }
+  // Dedupe and normalize
+  return Array.from(new Set(list.map(p => path.resolve(p))));
+})();
 export const DEFAULT_EXCLUDE_PATTERNS = [
   '.venv', 'venv', 'node_modules', '.git', '.svn', '.hg',
   '__pycache__', '.pytest_cache', '.mypy_cache', '.coverage',
