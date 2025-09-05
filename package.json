@@ -12,6 +12,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
+    "smoke": "node scripts/smoke-stdio.mjs",
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "npm run build",
     "clean": "rm -rf dist",
@@ -80,4 +81,4 @@
     "LICENSE",
     "CHANGELOG.md"
   ]
-}
+  }

@@ -40,6 +40,12 @@ import {
   handleListDirectoryWithAutoChunking,
   handleSearchFilesWithAutoChunking
 } from './enhanced-handlers.js';
+import {
+  isPathAllowed as coreIsPathAllowed,
+  safePath as coreSafePath,
+  getAllowedDirectories,
+  addAllowedDirectories
+} from './utils.js';
 // import { searchCode, SearchResult } from './search.js';
 
 const execAsync = promisify(exec);
@@ -50,13 +56,23 @@ const CLAUDE_MAX_CHUNK_SIZE = 2 * 1024 * 1024;    // 2MB
 const CLAUDE_MAX_LINES = 2000;                     // 최대 2000줄
 const CLAUDE_MAX_DIR_ITEMS = 1000;                 // 디렉토리 항목 최대 1000개
 
-// 기본 허용 디렉토리들
-const DEFAULT_ALLOWED_DIRECTORIES = [
-  process.env.HOME || '/home',
-  '/tmp',
-  '/Users', 
-  '/home'
-];
+// --- Allowed directories are managed centrally in utils.ts.
+// Parse CLI flags "--allow <dir>" to extend allowed set at runtime.
+const argv = process.argv.slice(2);
+const allowArgs: string[] = [];
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === '--allow' && i + 1 < argv.length) {
+    allowArgs.push(argv[i + 1]);
+    i++;
+  }
+}
+if (allowArgs.length > 0) {
+  const res = addAllowedDirectories(allowArgs);
+  if (res.skipped.length > 0) {
+    console.warn('Some --allow paths were skipped:', res.skipped);
+  }
+}
 
 // 백업 파일 설정 (환경변수나 설정으로 제어)
 const CREATE_BACKUP_FILES = process.env.CREATE_BACKUP_FILES === 'true'; // 기본값: false, true로 설정시만 활성화
@@ -136,19 +152,8 @@ function getEmojiGuideline(filePath: string): { shouldAvoidEmojis: boolean; reas
 }
 
 // 유틸리티 함수들
-function isPathAllowed(targetPath: string): boolean {
-  const absolutePath = path.resolve(targetPath);
-  return DEFAULT_ALLOWED_DIRECTORIES.some(allowedDir => 
-    absolutePath.startsWith(path.resolve(allowedDir))
-  );
-}
-
-function safePath(inputPath: string): string {
-  if (!isPathAllowed(inputPath)) {
-    throw new Error(`Access denied to path: ${inputPath}`);
-  }
-  return path.resolve(inputPath);
-}
+function isPathAllowed(targetPath: string): boolean { return coreIsPathAllowed(targetPath); }
+function safePath(inputPath: string): string { return coreSafePath(inputPath); }
 
 function formatSize(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -917,7 +922,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // 툴 핸들러 함수들
 async function handleListAllowedDirectories() {
   return {
-    allowed_directories: DEFAULT_ALLOWED_DIRECTORIES,
+    allowed_directories: getAllowedDirectories(),
     current_working_directory: process.cwd(),
     exclude_patterns: DEFAULT_EXCLUDE_PATTERNS,
     claude_limits: {

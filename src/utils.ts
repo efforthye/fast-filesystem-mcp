@@ -1,8 +1,23 @@
 import { promises as fs } from 'fs';
+import { realpathSync, statSync } from 'fs';
 import path from 'path';
 
 // 상수들
-export const DEFAULT_ALLOWED_DIRECTORIES = ['/tmp', process.cwd()];
+// Align defaults with original author intent: HOME, /tmp, user roots.
+export const DEFAULT_ALLOWED_DIRECTORIES = (() => {
+  const list: string[] = [];
+  const home = process.env.HOME || process.env.USERPROFILE || '/home';
+  list.push(home);
+  list.push('/tmp');
+  if (process.platform === 'win32') {
+    // Broad user root for Windows
+    list.push('C:/Users');
+  } else {
+    list.push('/Users', '/home');
+  }
+  // Dedupe and normalize
+  return Array.from(new Set(list.map(p => path.resolve(p))));
+})();
 export const DEFAULT_EXCLUDE_PATTERNS = [
   '.venv', 'venv', 'node_modules', '.git', '.svn', '.hg',
   '__pycache__', '.pytest_cache', '.mypy_cache', '.coverage',
@@ -17,11 +32,47 @@ export const CLAUDE_MAX_LINES = 2000;
 export const CLAUDE_MAX_DIR_ITEMS = 1000;
 
 // 유틸리티 함수들
+// Runtime-managed allowed directories (start with defaults)
+const allowedDirSet: Set<string> = new Set(
+  DEFAULT_ALLOWED_DIRECTORIES.map(p => path.resolve(p))
+);
+
+export function getAllowedDirectories(): string[] {
+  return Array.from(allowedDirSet);
+}
+
+export function addAllowedDirectories(paths: string[]): { added: string[]; skipped: { path: string; reason: string }[]; current: string[] } {
+  const added: string[] = [];
+  const skipped: { path: string; reason: string }[] = [];
+
+  for (const p of paths) {
+    try {
+      const candidate = path.isAbsolute(p) ? p : path.resolve(p);
+      const real = realpathSync(candidate);
+      const st = statSync(real);
+      if (!st.isDirectory()) {
+        skipped.push({ path: p, reason: 'not_a_directory' });
+        continue;
+      }
+      const resolved = path.resolve(real);
+      if (!allowedDirSet.has(resolved)) {
+        allowedDirSet.add(resolved);
+        added.push(resolved);
+      }
+    } catch {
+      skipped.push({ path: p, reason: 'invalid_or_inaccessible' });
+    }
+  }
+
+  return { added, skipped, current: Array.from(allowedDirSet) };
+}
+
 export function isPathAllowed(targetPath: string): boolean {
   const absolutePath = path.resolve(targetPath);
-  return DEFAULT_ALLOWED_DIRECTORIES.some(allowedDir => 
-    absolutePath.startsWith(path.resolve(allowedDir))
-  );
+  for (const allowedDir of allowedDirSet) {
+    if (absolutePath.startsWith(path.resolve(allowedDir))) return true;
+  }
+  return false;
 }
 
 export function safePath(inputPath: string): string {
