@@ -9,3 +9,5 @@ dist/*
 .npmrc.local
 *.pem
 *.key
+.npmrc
+agents.md

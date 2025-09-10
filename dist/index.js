@@ -1450,7 +1450,8 @@ async function handleCreateDirectory(args) {
 async function handleSearchFiles(args) {
     const { path: searchPath, pattern, content_search = false, case_sensitive = false, max_results = 100, context_lines = 0, // 새로 추가: 컨텍스트 라인
     file_pattern = '', // 새로 추가: 파일 패턴 필터링
-    include_binary = false // 새로 추가: 바이너리 파일 포함 여부
+    include_binary = false, // 새로 추가: 바이너리 파일 포함 여부
+    include_hidden = false // 새로 추가: 숨김 파일 포함 여부
      } = args;
     const safePath_resolved = safePath(searchPath);
     const maxResults = Math.min(max_results, 200);
@@ -1566,32 +1567,25 @@ async function handleSearchFiles(args) {
                     }
                     // 내용 검색 - ripgrep 사용
                     if (!matched && content_search) {
-                        try {
-                            // ripgrep을 사용한 빠른 검색 시도
-                            const ripgrepResults = await searchCode({
-                                rootPath: fullPath,
-                                pattern: pattern,
-                                filePattern: file_pattern,
-                                ignoreCase: !case_sensitive,
-                                maxResults: 1, // 매치 여부만 확인
-                                contextLines: context_lines
-                            });
-                            if (ripgrepResults.length > 0) {
+                        // NOTE: we now delegate bulk content searching to a single ripgrep call outside the per-file loop for performance.
+                        // The per-file loop will be skipped for content_search when a precomputed ripgrepResultsMap is present.
+                        const precomputed = global.__precomputedRipgrepResults;
+                        if (precomputed && precomputed.has(fullPath)) {
+                            const ripResults = precomputed.get(fullPath) || [];
+                            if (ripResults.length > 0) {
                                 matched = true;
                                 matchType = 'content';
-                                // ripgrep 결과를 기존 형식으로 변환
-                                matchedLines = ripgrepResults.map((result) => ({
-                                    line_number: result.line,
-                                    line_content: result.match,
-                                    match_start: result.column || 0,
-                                    match_end: (result.column || 0) + result.match.length,
-                                    context_before: result.context_before || [],
-                                    context_after: result.context_after || []
+                                matchedLines = ripResults.map((r) => ({
+                                    line_number: r.line,
+                                    line_content: r.match,
+                                    match_start: r.column || 0,
+                                    match_end: (r.column || 0) + r.match.length,
+                                    context_before: r.context_before || [],
+                                    context_after: r.context_after || []
                                 }));
                             }
                         }
-                        catch (ripgrepError) {
-                            // ripgrep 실패시 기존 방법으로 폴백
+                        else {
                             try {
                                 const stats = await fs.stat(fullPath);
                                 if (stats.size < 10 * 1024 * 1024) { // 10MB 제한
@@ -1670,8 +1664,42 @@ async function handleSearchFiles(args) {
             console.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
+    // If content_search is requested, run a single ripgrep search across the rootPath
     const startTime = Date.now();
-    await searchDirectory(safePath_resolved);
+    if (content_search) {
+        try {
+            // Run ripgrep once for the root and cache results into a map for fast lookup
+            const ripResults = await searchCode({
+                rootPath: safePath_resolved,
+                pattern: pattern,
+                filePattern: file_pattern,
+                ignoreCase: !case_sensitive,
+                maxResults: maxResults,
+                includeHidden: include_hidden,
+                contextLines: context_lines
+            });
+            // Map results by absolute file path
+            const resultMap = new Map();
+            for (const r of ripResults) {
+                if (!resultMap.has(r.file))
+                    resultMap.set(r.file, []);
+                resultMap.get(r.file).push(r);
+            }
+            // Expose map to per-file loop via global variable for this run
+            global.__precomputedRipgrepResults = resultMap;
+            // Now run directory traversal which will consult the precomputed map
+            await searchDirectory(safePath_resolved);
+            // Clean up the global cache
+            delete global.__precomputedRipgrepResults;
+        }
+        catch (rgError) {
+            console.warn('Ripgrep bulk search failed, falling back to per-file checks:', rgError);
+            await searchDirectory(safePath_resolved);
+        }
+    }
+    else {
+        await searchDirectory(safePath_resolved);
+    }
     const searchTime = Date.now() - startTime;
     return {
         results: results,
@@ -1891,49 +1919,144 @@ async function searchCodeWithRipgrep(options) {
         args.push('-C', contextLines.toString());
     if (filePattern)
         args.push('-g', filePattern);
-    args.push(pattern, rootPath);
+    args.push('-e', pattern, rootPath);
+    // Ensure pattern is not empty to avoid rg errors
+    if (!pattern || pattern.trim().length === 0) {
+        throw new Error('Empty search pattern is not allowed');
+    }
     return new Promise((resolve, reject) => {
         const results = [];
         const rg = spawn(rgPath, args);
-        let stdoutBuffer = '';
+        let remainder = '';
         let timeoutId;
+        let settled = false;
+        function cleanupAndResolve() {
+            if (settled)
+                return;
+            settled = true;
+            if (timeoutId)
+                clearTimeout(timeoutId);
+            try {
+                rg.stdout.removeAllListeners();
+            }
+            catch { }
+            try {
+                rg.stderr.removeAllListeners();
+            }
+            catch { }
+            try {
+                rg.removeAllListeners();
+            }
+            catch { }
+            try {
+                if (!rg.killed)
+                    rg.kill();
+            }
+            catch { }
+            resolve(results);
+        }
+        function cleanupAndReject(err) {
+            if (settled)
+                return;
+            settled = true;
+            if (timeoutId)
+                clearTimeout(timeoutId);
+            try {
+                rg.stdout.removeAllListeners();
+            }
+            catch { }
+            try {
+                rg.stderr.removeAllListeners();
+            }
+            catch { }
+            try {
+                rg.removeAllListeners();
+            }
+            catch { }
+            try {
+                if (!rg.killed)
+                    rg.kill();
+            }
+            catch { }
+            reject(err instanceof Error ? err : new Error(String(err)));
+        }
         if (timeout > 0) {
             timeoutId = setTimeout(() => {
-                rg.kill();
-                reject(new Error(`Search timed out after ${timeout}ms`));
+                try {
+                    if (!rg.killed)
+                        rg.kill();
+                }
+                catch { }
+                cleanupAndReject(new Error(`Search timed out after ${timeout}ms`));
             }, timeout);
         }
         rg.stdout.on('data', (data) => {
-            stdoutBuffer += data.toString();
+            remainder += data.toString();
+            let idx;
+            while ((idx = remainder.indexOf('\n')) !== -1) {
+                const line = remainder.slice(0, idx);
+                remainder = remainder.slice(idx + 1);
+                if (!line)
+                    continue;
+                try {
+                    const parsed = JSON.parse(line);
+                    if (parsed.type === 'match') {
+                        parsed.data.submatches.forEach((submatch) => {
+                            results.push({
+                                file: parsed.data.path.text,
+                                line: parsed.data.line_number,
+                                match: submatch.match.text,
+                                column: submatch.start
+                            });
+                        });
+                    }
+                    else if (parsed.type === 'context' && contextLines > 0) {
+                        results.push({
+                            file: parsed.data.path.text,
+                            line: parsed.data.line_number,
+                            match: parsed.data.lines.text.trim()
+                        });
+                    }
+                }
+                catch (error) {
+                    console.error(`Error parsing ripgrep output: ${error}`);
+                }
+                if (results.length >= maxResults) {
+                    cleanupAndResolve();
+                    return;
+                }
+            }
         });
         rg.stderr.on('data', (data) => {
             console.error(`ripgrep error: ${data}`);
         });
         rg.on('close', (code) => {
+            if (settled)
+                return;
             if (timeoutId)
                 clearTimeout(timeoutId);
-            if (code === 0 || code === 1) {
-                const lines = stdoutBuffer.trim().split('\n');
-                for (const line of lines) {
+            if (remainder) {
+                const leftover = remainder.trim().split('\n');
+                for (const line of leftover) {
                     if (!line)
                         continue;
                     try {
-                        const result = JSON.parse(line);
-                        if (result.type === 'match') {
-                            result.data.submatches.forEach((submatch) => {
+                        const parsed = JSON.parse(line);
+                        if (parsed.type === 'match') {
+                            parsed.data.submatches.forEach((submatch) => {
                                 results.push({
-                                    file: result.data.path.text,
-                                    line: result.data.line_number,
+                                    file: parsed.data.path.text,
+                                    line: parsed.data.line_number,
                                     match: submatch.match.text,
                                     column: submatch.start
                                 });
                             });
                         }
-                        else if (result.type === 'context' && contextLines > 0) {
+                        else if (parsed.type === 'context' && contextLines > 0) {
                             results.push({
-                                file: result.data.path.text,
-                                line: result.data.line_number,
-                                match: result.data.lines.text.trim()
+                                file: parsed.data.path.text,
+                                line: parsed.data.line_number,
+                                match: parsed.data.lines.text.trim()
                             });
                         }
                     }
@@ -1941,16 +2064,18 @@ async function searchCodeWithRipgrep(options) {
                         console.error(`Error parsing ripgrep output: ${error}`);
                     }
                 }
-                resolve(results);
+            }
+            if (code === 0 || code === 1) {
+                cleanupAndResolve();
             }
             else {
-                reject(new Error(`ripgrep process exited with code ${code}`));
+                cleanupAndReject(new Error(`ripgrep process exited with code ${code}`));
             }
         });
         rg.on('error', (error) => {
             if (timeoutId)
                 clearTimeout(timeoutId);
-            reject(error);
+            cleanupAndReject(error);
         });
     });
 }
