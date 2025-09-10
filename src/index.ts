@@ -26,16 +26,16 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
-import { 
-  ResponseSizeMonitor, 
-  ContinuationTokenManager, 
-  AutoChunkingHelper, 
+import {
+  ResponseSizeMonitor,
+  ContinuationTokenManager,
+  AutoChunkingHelper,
   createChunkedResponse,
   globalTokenManager,
   type ContinuationToken,
   type ChunkedResponse
 } from './auto-chunking.js';
-import { 
+import {
   handleReadFileWithAutoChunking,
   handleListDirectoryWithAutoChunking,
   handleSearchFilesWithAutoChunking
@@ -88,10 +88,10 @@ const DEFAULT_EXCLUDE_PATTERNS = [
 // 이모지 감지 함수 (제거하지 않고 경고만)
 function detectEmojis(text: string): { hasEmojis: boolean; count: number; positions: number[] } {
   const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F004}]|[\u{1F0CF}]|[\u{1F170}-\u{1F251}]/gu;
-  
+
   const matches = Array.from(text.matchAll(emojiRegex));
   const positions = matches.map(match => match.index || 0);
-  
+
   return {
     hasEmojis: matches.length > 0,
     count: matches.length,
@@ -109,17 +109,17 @@ function removeEmojis(text: string): string {
 function getEmojiGuideline(filePath: string): { shouldAvoidEmojis: boolean; reason: string; fileType: string } {
   const ext = path.extname(filePath).toLowerCase();
   const fileName = path.basename(filePath).toLowerCase();
-  
+
   // 코드 파일들
   const codeExtensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.h', '.cs', '.php', '.rb', '.go', '.rs', '.swift', '.kt'];
-  
+
   // 설정 파일들
   const configExtensions = ['.json', '.yml', '.yaml', '.toml', '.ini', '.cfg', '.conf'];
   const configFiles = ['package.json', 'tsconfig.json', 'webpack.config.js', 'dockerfile', 'makefile'];
-  
+
   // 문서 파일들
   const docExtensions = ['.md', '.txt', '.rst', '.adoc'];
-  
+
   if (codeExtensions.includes(ext)) {
     return {
       shouldAvoidEmojis: true,
@@ -127,7 +127,7 @@ function getEmojiGuideline(filePath: string): { shouldAvoidEmojis: boolean; reas
       fileType: 'code'
     };
   }
-  
+
   if (configExtensions.includes(ext) || configFiles.includes(fileName)) {
     return {
       shouldAvoidEmojis: true,
@@ -135,7 +135,7 @@ function getEmojiGuideline(filePath: string): { shouldAvoidEmojis: boolean; reas
       fileType: 'config'
     };
   }
-  
+
   if (docExtensions.includes(ext)) {
     return {
       shouldAvoidEmojis: true,
@@ -143,7 +143,7 @@ function getEmojiGuideline(filePath: string): { shouldAvoidEmojis: boolean; reas
       fileType: 'documentation'
     };
   }
-  
+
   return {
     shouldAvoidEmojis: true,
     reason: 'Emojis not recommended in files',
@@ -159,12 +159,12 @@ function formatSize(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let size = bytes;
   let unitIndex = 0;
-  
+
   while (size >= 1024 && unitIndex < units.length - 1) {
     size /= 1024;
     unitIndex++;
   }
-  
+
   return `${size.toFixed(2)} ${units[unitIndex]}`;
 }
 
@@ -172,17 +172,17 @@ function shouldExcludePath(targetPath: string, excludePatterns: string[] = []): 
   const patterns = [...DEFAULT_EXCLUDE_PATTERNS, ...excludePatterns];
   const pathName = path.basename(targetPath).toLowerCase();
   const pathParts = targetPath.split(path.sep);
-  
+
   return patterns.some(pattern => {
     const patternLower = pattern.toLowerCase();
-    
+
     if (pattern.includes('*') || pattern.includes('?')) {
       const regex = new RegExp(pattern.replace(/\\*/g, '.*').replace(/\\?/g, '.'));
       return regex.test(pathName);
     }
-    
-    return pathParts.some(part => part.toLowerCase() === patternLower) || 
-           pathName === patternLower;
+
+    return pathParts.some(part => part.toLowerCase() === patternLower) ||
+      pathName === patternLower;
   });
 }
 
@@ -191,12 +191,12 @@ function truncateContent(content: string, maxSize: number = CLAUDE_MAX_RESPONSE_
   if (contentBytes <= maxSize) {
     return { content, truncated: false };
   }
-  
+
   let truncated = content;
   while (Buffer.byteLength(truncated, 'utf8') > maxSize) {
     truncated = truncated.slice(0, -1);
   }
-  
+
   return {
     content: truncated,
     truncated: true,
@@ -207,16 +207,16 @@ function truncateContent(content: string, maxSize: number = CLAUDE_MAX_RESPONSE_
 
 // 대용량 파일 작성을 위한 유틸리티 함수들
 async function writeFileWithRetry(
-  filePath: string, 
-  content: string, 
-  encoding: BufferEncoding, 
+  filePath: string,
+  content: string,
+  encoding: BufferEncoding,
   chunkSize: number,
   maxRetries: number,
   append: boolean
-): Promise<{retryCount: number; totalTime: number}> {
+): Promise<{ retryCount: number; totalTime: number }> {
   let retryCount = 0;
   const startTime = Date.now();
-  
+
   while (retryCount <= maxRetries) {
     try {
       await writeFileStreaming(filePath, content, encoding, chunkSize, append);
@@ -226,40 +226,40 @@ async function writeFileWithRetry(
       if (retryCount > maxRetries) {
         throw error;
       }
-      
+
       const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
-  
+
   throw new Error('Max retry attempts exceeded');
 }
 
 async function writeFileStreaming(
-  filePath: string, 
-  content: string, 
-  encoding: BufferEncoding, 
+  filePath: string,
+  content: string,
+  encoding: BufferEncoding,
   chunkSize: number,
   append: boolean
 ): Promise<void> {
   const buffer = Buffer.from(content, encoding);
   const fileHandle = await fs.open(filePath, append ? 'a' : 'w');
-  
+
   try {
     let position = 0;
     while (position < buffer.length) {
       const end = Math.min(position + chunkSize, buffer.length);
       const chunk = buffer.subarray(position, end);
-      
+
       await fileHandle.write(chunk);
       position = end;
-      
+
       // 메모리 압박 방지를 위한 이벤트 루프 양보
       if (position % (chunkSize * 10) === 0) {
         await new Promise(resolve => setImmediate(resolve));
       }
     }
-    
+
     await fileHandle.sync(); // 디스크에 강제 동기화
   } finally {
     await fileHandle.close();
@@ -270,7 +270,7 @@ async function checkDiskSpace(dirPath: string, requiredBytes: number): Promise<v
   try {
     const { stdout } = await execAsync(`df -B1 "${dirPath}" | tail -1 | awk '{print $4}'`);
     const availableBytes = parseInt(stdout.trim());
-    
+
     if (availableBytes < requiredBytes * 1.5) {
       throw new Error(
         `Insufficient disk space. Required: ${formatSize(requiredBytes)}, ` +
@@ -311,10 +311,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'fast_list_allowed_directories',
         description: '허용된 디렉토리 목록을 조회합니다',
-        inputSchema: { 
-          type: 'object', 
-          properties: {}, 
-          required: [] 
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: []
         }
       },
       {
@@ -341,10 +341,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: 'object',
           properties: {
-            paths: { 
-              type: 'array', 
-              items: { type: 'string' }, 
-              description: '읽을 파일 경로들' 
+            paths: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '읽을 파일 경로들'
             },
             continuation_tokens: {
               type: 'object',
@@ -526,7 +526,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: 'object',
           properties: {
             path: { type: 'string', description: '편집할 파일 경로' },
-            edits: { 
+            edits: {
               type: 'array',
               description: '수정 사항 리스트 [{"old_text": "찾을 텍스트", "new_text": "바꿀 텍스트"}]',
               items: {
@@ -572,8 +572,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             path: { type: 'string', description: '편집할 파일 경로' },
             old_text: { type: 'string', description: '교체할 텍스트' },
             new_text: { type: 'string', description: '새로운 텍스트' },
-            safety_level: { 
-              type: 'string', 
+            safety_level: {
+              type: 'string',
               enum: ['strict', 'moderate', 'flexible'],
               default: 'moderate',
               description: '안전 수준 (strict: 매우 안전, moderate: 균형, flexible: 유연)'
@@ -600,8 +600,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                   old_text: { type: 'string', description: '찾을 기존 텍스트' },
                   new_text: { type: 'string', description: '새로운 텍스트' },
                   line_number: { type: 'number', description: '라인 번호' },
-                  mode: { 
-                    type: 'string', 
+                  mode: {
+                    type: 'string',
                     enum: ['replace', 'insert_before', 'insert_after', 'delete_line'],
                     default: 'replace'
                   }
@@ -712,8 +712,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               items: {
                 type: 'object',
                 properties: {
-                  operation: { 
-                    type: 'string', 
+                  operation: {
+                    type: 'string',
                     enum: ['copy', 'move', 'delete', 'rename'],
                     description: '작업 유형'
                   },
@@ -737,22 +737,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: 'object',
           properties: {
-            paths: { 
-              type: 'array', 
+            paths: {
+              type: 'array',
               items: { type: 'string' },
-              description: '압축할 파일/디렉토리 경로들' 
+              description: '압축할 파일/디렉토리 경로들'
             },
             output_path: { type: 'string', description: '출력 압축 파일 경로' },
-            format: { 
-              type: 'string', 
+            format: {
+              type: 'string',
               enum: ['zip', 'tar', 'tar.gz', 'tar.bz2'],
               default: 'zip',
               description: '압축 형식'
             },
-            compression_level: { 
-              type: 'number', 
-              minimum: 0, 
-              maximum: 9, 
+            compression_level: {
+              type: 'number',
+              minimum: 0,
+              maximum: 9,
               default: 6,
               description: '압축 레벨 (0=저장만, 9=최고압축)'
             },
@@ -820,10 +820,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // 툴 호출 핸들러
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  
+
   try {
     let result;
-    
+
     switch (name) {
       case 'fast_list_allowed_directories':
         result = await handleListAllowedDirectories();
@@ -850,7 +850,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await handleCreateDirectory(args);
         break;
       case 'fast_search_files':
-        result = await handleSearchFilesWithAutoChunking(args);
+        result = await handleSearchFiles(args);
         break;
       case 'fast_search_code':
         result = await handleSearchCode(args);
@@ -907,7 +907,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       default:
         throw new Error(`Tool not implemented: ${name}`);
     }
-    
+
     return {
       content: [{
         type: 'text',
@@ -926,8 +926,8 @@ async function handleListAllowedDirectories() {
     current_working_directory: process.cwd(),
     exclude_patterns: DEFAULT_EXCLUDE_PATTERNS,
     claude_limits: {
-      max_response_size_mb: CLAUDE_MAX_RESPONSE_SIZE / (1024**2),
-      max_chunk_size_mb: CLAUDE_MAX_CHUNK_SIZE / (1024**2),
+      max_response_size_mb: CLAUDE_MAX_RESPONSE_SIZE / (1024 ** 2),
+      max_chunk_size_mb: CLAUDE_MAX_CHUNK_SIZE / (1024 ** 2),
       max_lines_per_read: CLAUDE_MAX_LINES,
       max_dir_items: CLAUDE_MAX_DIR_ITEMS
     },
@@ -944,65 +944,65 @@ async function handleListAllowedDirectories() {
 }
 
 async function handleReadFile(args: any) {
-  const { 
-    path: filePath, 
-    start_offset = 0, 
-    max_size, 
-    line_start, 
-    line_count, 
+  const {
+    path: filePath,
+    start_offset = 0,
+    max_size,
+    line_start,
+    line_count,
     encoding = 'utf-8',
     continuation_token,
     auto_chunk = true
   } = args;
-  
+
   const safePath_resolved = safePath(filePath);
   const stats = await fs.stat(safePath_resolved);
-  
+
   if (!stats.isFile()) {
     throw new Error('Path is not a file');
   }
-  
+
   const maxReadSize = max_size ? Math.min(max_size, CLAUDE_MAX_CHUNK_SIZE) : CLAUDE_MAX_CHUNK_SIZE;
-  
+
   // 라인 모드 - Python 방식으로 스트리밍 읽기
   if (line_start !== undefined) {
     const linesToRead = line_count ? Math.min(line_count, CLAUDE_MAX_LINES) : CLAUDE_MAX_LINES;
     const lines: string[] = [];
-    
+
     // 큰 파일은 스트리밍으로 처리
     if (stats.size > 10 * 1024 * 1024) { // 10MB 이상
       const fileHandle = await fs.open(safePath_resolved, 'r');
       const stream = fileHandle.createReadStream({ encoding: encoding as BufferEncoding });
-      
+
       let currentLine = 0;
       let buffer = '';
-      
+
       for await (const chunk of stream) {
         buffer += chunk;
         const chunkLines = buffer.split('\n');
         buffer = chunkLines.pop() || ''; // 마지막 불완전한 라인은 보관
-        
+
         for (const line of chunkLines) {
           if (currentLine >= line_start && lines.length < linesToRead) {
             lines.push(line);
           }
           currentLine++;
-          
+
           if (lines.length >= linesToRead) {
             break;
           }
         }
-        
+
         if (lines.length >= linesToRead) {
           break;
         }
       }
-      
+
       // 버퍼에 남은 마지막 라인 처리
       if (buffer && currentLine >= line_start && lines.length < linesToRead) {
         lines.push(buffer);
       }
-      
+
       await fileHandle.close();
     } else {
       // 작은 파일은 기존 방식 (하지만 전체 라인 수는 세지 않음)
@@ -1011,7 +1011,7 @@ async function handleReadFile(args: any) {
       const selectedLines = allLines.slice(line_start, line_start + linesToRead);
       lines.push(...selectedLines);
     }
-    
+
     return {
       content: lines.join('\n'),
       mode: 'lines',
@@ -1024,16 +1024,16 @@ async function handleReadFile(args: any) {
       path: safePath_resolved
     };
   }
-  
+
   // 바이트 모드 - 기존 방식 유지
   const fileHandle = await fs.open(safePath_resolved, 'r');
   const buffer = Buffer.alloc(maxReadSize);
   const { bytesRead } = await fileHandle.read(buffer, 0, maxReadSize, start_offset);
   await fileHandle.close();
-  
+
   const content = buffer.subarray(0, bytesRead).toString(encoding as BufferEncoding);
   const result = truncateContent(content);
-  
+
   return {
     content: result.content,
     mode: 'bytes',
@@ -1050,13 +1050,13 @@ async function handleReadFile(args: any) {
 
 // 여러 파일을 한번에 읽는 핸들러 (순차적 읽기 지원)
 async function handleReadMultipleFiles(args: any) {
-  const { 
-    paths = [], 
+  const {
+    paths = [],
     continuation_tokens = {},  // 파일별 continuation token
     auto_continue = true,      // 자동으로 전체 파일 읽기
     chunk_size = 1024 * 1024   // 1MB 청크 크기
   } = args;
-  
+
   if (!Array.isArray(paths) || paths.length === 0) {
     throw new Error('paths parameter must be a non-empty array');
   }
@@ -1072,7 +1072,7 @@ async function handleReadMultipleFiles(args: any) {
     try {
       const safePath_resolved = safePath(filePath);
       const stats = await fs.stat(safePath_resolved);
-      
+
       if (!stats.isFile()) {
         throw new Error('Path is not a file');
       }
@@ -1080,7 +1080,7 @@ async function handleReadMultipleFiles(args: any) {
       // 이미지 파일 처리
       const ext = path.extname(safePath_resolved).toLowerCase();
       const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
-      
+
       if (imageExtensions.includes(ext)) {
         return {
           path: safePath_resolved,
@@ -1100,31 +1100,31 @@ async function handleReadMultipleFiles(args: any) {
       // 기존 continuation token 확인
       const existingToken = continuation_tokens[safePath_resolved];
       let startOffset = existingToken ? existingToken.next_offset : 0;
-      
+
       // 텍스트 파일 읽기 (청킹 지원)
       let content = '';
       let totalBytesRead = 0;
       let hasMore = false;
       let nextOffset = startOffset;
-      
+
       if (auto_continue) {
         // 자동으로 전체 파일 읽기 (여러 청크)
         const fileHandle = await fs.open(safePath_resolved, 'r');
-        
+
         try {
           while (nextOffset < stats.size) {
             const remainingBytes = stats.size - nextOffset;
             const currentChunkSize = Math.min(chunk_size, remainingBytes);
             const buffer = Buffer.alloc(currentChunkSize);
-            
+
             const { bytesRead } = await fileHandle.read(buffer, 0, currentChunkSize, nextOffset);
             if (bytesRead === 0) break;
-            
+
             const chunkContent = buffer.subarray(0, bytesRead).toString('utf-8');
             content += chunkContent;
             totalBytesRead += bytesRead;
             nextOffset += bytesRead;
-            
+
             // 매우 큰 파일의 경우 일정 크기에서 중단 (5MB 제한)
             if (totalBytesRead >= 5 * 1024 * 1024) {
               hasMore = nextOffset < stats.size;
@@ -1140,13 +1140,13 @@ async function handleReadMultipleFiles(args: any) {
         const buffer = Buffer.alloc(chunk_size);
         const { bytesRead } = await fileHandle.read(buffer, 0, chunk_size, startOffset);
         await fileHandle.close();
-        
+
         content = buffer.subarray(0, bytesRead).toString('utf-8');
         totalBytesRead = bytesRead;
         nextOffset = startOffset + bytesRead;
         hasMore = nextOffset < stats.size;
       }
-      
+
       // Continuation token 생성 (더 읽을 내용이 있는 경우)
       let continuationToken = null;
       if (hasMore) {
@@ -1158,10 +1158,10 @@ async function handleReadMultipleFiles(args: any) {
           chunk_size: chunk_size,
           progress_percent: ((nextOffset / stats.size) * 100).toFixed(2) + '%'
         };
-        
+
         continuationData[safePath_resolved] = continuationToken;
       }
-      
+
       return {
         path: safePath_resolved,
         name: path.basename(safePath_resolved),
@@ -1183,7 +1183,7 @@ async function handleReadMultipleFiles(args: any) {
         auto_continued: auto_continue && startOffset === 0,
         index: index
       };
-      
+
     } catch (error) {
       return {
         path: filePath,
@@ -1198,7 +1198,7 @@ async function handleReadMultipleFiles(args: any) {
 
   // 모든 파일 읽기 완료 대기
   const fileResults = await Promise.all(readPromises);
-  
+
   // 결과 분류
   fileResults.forEach(result => {
     if (result.type === 'error') {
@@ -1249,20 +1249,20 @@ async function handleReadMultipleFiles(args: any) {
 
 async function handleWriteFile(args: any) {
   const { path: filePath, content, encoding = 'utf-8', create_dirs = true, append = false, force_remove_emojis = false } = args;
-  
+
   let targetPath: string;
   if (path.isAbsolute(filePath)) {
     targetPath = filePath;
   } else {
     targetPath = path.join(process.cwd(), filePath);
   }
-  
+
   if (!isPathAllowed(targetPath)) {
     throw new Error(`Access denied to path: ${targetPath}`);
   }
-  
+
   const resolvedPath = path.resolve(targetPath);
-  
+
   // 백업 생성 (설정에 따라)
   let backupPath = null;
   if (CREATE_BACKUP_FILES && !append) {
@@ -1274,20 +1274,20 @@ async function handleWriteFile(args: any) {
       // 원본 파일이 없으면 백업 생성 안함
     }
   }
-  
+
   if (create_dirs) {
     const dir = path.dirname(resolvedPath);
     await fs.mkdir(dir, { recursive: true });
   }
-  
+
   // 이모지 감지 및 가이드라인 제공
   const emojiDetection = detectEmojis(content);
   const guideline = getEmojiGuideline(resolvedPath);
-  
+
   // 최종 내용 결정
   let finalContent = content;
   let emojiAction = 'none';
-  
+
   if (force_remove_emojis) {
     finalContent = removeEmojis(content);
     emojiAction = 'force_removed';
@@ -1295,15 +1295,15 @@ async function handleWriteFile(args: any) {
     // 권장사항 위반시 경고만 제공 (강제 제거 안함)
     emojiAction = 'warning_provided';
   }
-  
+
   if (append) {
     await fs.appendFile(resolvedPath, finalContent, encoding as BufferEncoding);
   } else {
     await fs.writeFile(resolvedPath, finalContent, encoding as BufferEncoding);
   }
-  
+
   const stats = await fs.stat(resolvedPath);
-  
+
   const result: any = {
     message: `File ${append ? 'appended' : 'written'} successfully`,
     path: resolvedPath,
@@ -1315,7 +1315,7 @@ async function handleWriteFile(args: any) {
     backup_enabled: CREATE_BACKUP_FILES,
     timestamp: new Date().toISOString()
   };
-  
+
   // 이모지 관련 정보 추가 (간단하게)
   if (emojiDetection.hasEmojis) {
     result.emoji_info = {
@@ -1323,17 +1323,17 @@ async function handleWriteFile(args: any) {
       guideline: guideline.reason
     };
   }
-  
+
   return result;
 }
 
 // 새로운 대용량 파일 작성 핸들러
 async function handleLargeWriteFile(args: any) {
-  const { 
-    path: filePath, 
-    content, 
-    encoding = 'utf-8', 
-    create_dirs = true, 
+  const {
+    path: filePath,
+    content,
+    encoding = 'utf-8',
+    create_dirs = true,
     append = false,
     chunk_size = 64 * 1024, // 64KB 청크
     backup = true,
@@ -1341,47 +1341,47 @@ async function handleLargeWriteFile(args: any) {
     verify_write = true,
     force_remove_emojis = false
   } = args;
-  
+
   let targetPath: string;
   if (path.isAbsolute(filePath)) {
     targetPath = filePath;
   } else {
     targetPath = path.join(process.cwd(), filePath);
   }
-  
+
   if (!isPathAllowed(targetPath)) {
     throw new Error(`Access denied to path: ${targetPath}`);
   }
-  
+
   const resolvedPath = path.resolve(targetPath);
   const tempPath = `${resolvedPath}.tmp.${Date.now()}`;
   const backupPath = `${resolvedPath}.backup.${Date.now()}`;
-  
+
   try {
     // 이모지 감지 및 처리
     const emojiDetection = detectEmojis(content);
     const guideline = getEmojiGuideline(resolvedPath);
-    
+
     let finalContent = content;
     let emojiAction = 'none';
-    
+
     if (force_remove_emojis) {
       finalContent = removeEmojis(content);
       emojiAction = 'force_removed';
     } else if (emojiDetection.hasEmojis && guideline.shouldAvoidEmojis) {
       emojiAction = 'warning_provided';
     }
-    
+
     // 1. 디렉토리 생성
     if (create_dirs) {
       const dir = path.dirname(resolvedPath);
       await fs.mkdir(dir, { recursive: true });
     }
-    
+
     // 2. 디스크 공간 확인
     const contentSize = Buffer.byteLength(finalContent, encoding as BufferEncoding);
     await checkDiskSpace(path.dirname(resolvedPath), contentSize);
-    
+
     // 3. 기존 파일 백업 (덮어쓰기 모드이고 파일이 존재하며 백업이 활성화된 경우)
     let originalExists = false;
     let originalSize = 0;
@@ -1395,7 +1395,7 @@ async function handleLargeWriteFile(args: any) {
         // 원본 파일이 없으면 무시
       }
     }
-    
+
     // 4. 스트리밍 방식으로 대용량 파일 작성
     const result = await writeFileWithRetry(
       append ? resolvedPath : tempPath,
@@ -1405,12 +1405,12 @@ async function handleLargeWriteFile(args: any) {
       retry_attempts,
       append
     );
-    
+
     // 5. 원자적 이동 (append가 아닌 경우)
     if (!append) {
       await fs.rename(tempPath, resolvedPath);
     }
-    
+
     // 6. 작성 검증 (옵션)
     if (verify_write) {
       const finalStats = await fs.stat(resolvedPath);
@@ -1427,9 +1427,9 @@ async function handleLargeWriteFile(args: any) {
         }
       }
     }
-    
+
     const finalStats = await fs.stat(resolvedPath);
-    
+
     const response: any = {
       message: `Large file ${append ? 'appended' : 'written'} successfully`,
       path: resolvedPath,
@@ -1450,7 +1450,7 @@ async function handleLargeWriteFile(args: any) {
         write_speed_mbps: (contentSize / (1024 * 1024)) / (result.totalTime / 1000)
       }
     };
-    
+
     // 이모지 관련 정보 추가 (간단하게)
     if (emojiDetection.hasEmojis) {
       response.emoji_info = {
@@ -1458,15 +1458,15 @@ async function handleLargeWriteFile(args: any) {
         guideline: guideline.reason
       };
     }
-    
+
     return response;
-    
+
   } catch (error) {
     // 에러 복구
     try {
       // 임시 파일 정리
-      await fs.unlink(tempPath).catch(() => {});
-      
+      await fs.unlink(tempPath).catch(() => { });
+
       // 백업에서 복구 (실패한 경우)
       if (!append && backup && CREATE_BACKUP_FILES) {
         try {
@@ -1478,24 +1478,24 @@ async function handleLargeWriteFile(args: any) {
     } catch {
       // 정리 실패는 무시
     }
-    
+
     throw error;
   }
 }
 
 async function handleListDirectory(args: any) {
   const { path: dirPath, page = 1, page_size, pattern, show_hidden = false, sort_by = 'name', reverse = false } = args;
-  
+
   const safePath_resolved = safePath(dirPath);
   const stats = await fs.stat(safePath_resolved);
-  
+
   if (!stats.isDirectory()) {
     throw new Error('Path is not a directory');
   }
-  
+
   const pageSize = page_size ? Math.min(page_size, CLAUDE_MAX_DIR_ITEMS) : 50;
   const entries = await fs.readdir(safePath_resolved, { withFileTypes: true });
-  
+
   let filteredEntries = entries.filter(entry => {
     if (!show_hidden && entry.name.startsWith('.')) return false;
     if (shouldExcludePath(path.join(safePath_resolved, entry.name))) return false;
@@ -1504,11 +1504,11 @@ async function handleListDirectory(args: any) {
     }
     return true;
   });
-  
+
   // 정렬
   filteredEntries.sort((a, b) => {
     let comparison = 0;
-    
+
     switch (sort_by) {
       case 'name':
         comparison = a.name.localeCompare(b.name);
@@ -1521,19 +1521,19 @@ async function handleListDirectory(args: any) {
       default:
         comparison = a.name.localeCompare(b.name);
     }
-    
+
     return reverse ? -comparison : comparison;
   });
-  
+
   const startIdx = (page - 1) * pageSize;
   const endIdx = startIdx + pageSize;
   const pageEntries = filteredEntries.slice(startIdx, endIdx);
-  
+
   const items = await Promise.all(pageEntries.map(async (entry) => {
     try {
       const fullPath = path.join(safePath_resolved, entry.name);
       const itemStats = await fs.stat(fullPath);
-      
+
       return {
         name: entry.name,
         type: entry.isDirectory() ? 'directory' : 'file',
@@ -1557,7 +1557,7 @@ async function handleListDirectory(args: any) {
       };
     }
   }));
-  
+
   return {
     path: safePath_resolved,
     items: items,
@@ -1574,10 +1574,10 @@ async function handleListDirectory(args: any) {
 
 async function handleGetFileInfo(args: any) {
   const { path: targetPath } = args;
-  
+
   const safePath_resolved = safePath(targetPath);
   const stats = await fs.stat(safePath_resolved);
-  
+
   const info = {
     path: safePath_resolved,
     name: path.basename(safePath_resolved),
@@ -1591,13 +1591,13 @@ async function handleGetFileInfo(args: any) {
     is_readable: true,
     is_writable: true
   };
-  
+
   if (stats.isFile()) {
     (info as any).extension = path.extname(safePath_resolved);
     (info as any).mime_type = getMimeType(safePath_resolved);
-    
+
     // 파일별 이모지 가이드라인 제거 (토큰 절약)
-    
+
     if (stats.size > CLAUDE_MAX_CHUNK_SIZE) {
       (info as any).claude_guide = {
         message: 'File is large, consider using chunked reading',
@@ -1609,7 +1609,7 @@ async function handleGetFileInfo(args: any) {
     try {
       const entries = await fs.readdir(safePath_resolved);
       (info as any).item_count = entries.length;
-      
+
       if (entries.length > CLAUDE_MAX_DIR_ITEMS) {
         (info as any).claude_guide = {
           message: 'Directory has many items, consider using pagination',
@@ -1621,16 +1621,16 @@ async function handleGetFileInfo(args: any) {
       (info as any).item_count = 'Unable to count';
     }
   }
-  
+
   return info;
 }
 
 async function handleCreateDirectory(args: any) {
   const { path: dirPath, recursive = true } = args;
-  
+
   const safePath_resolved = safePath(dirPath);
   await fs.mkdir(safePath_resolved, { recursive });
-  
+
   return {
     message: 'Directory created successfully',
     path: safePath_resolved,
@@ -1640,24 +1640,24 @@ async function handleCreateDirectory(args: any) {
 }
 
 async function handleSearchFiles(args: any) {
-  const { 
-    path: searchPath, 
-    pattern, 
-    content_search = false, 
-    case_sensitive = false, 
+  const {
+    path: searchPath,
+    pattern,
+    content_search = false,
+    case_sensitive = false,
     max_results = 100,
     context_lines = 0,  // 새로 추가: 컨텍스트 라인
     file_pattern = '',  // 새로 추가: 파일 패턴 필터링
     include_binary = false,  // 새로 추가: 바이너리 파일 포함 여부
     include_hidden = false   // 새로 추가: 숨김 파일 포함 여부
   } = args;
-  
+
   const safePath_resolved = safePath(searchPath);
   const maxResults = Math.min(max_results, 200);
   const results: any[] = [];
-  
+
   const searchPattern = case_sensitive ? pattern : pattern.toLowerCase();
-  
+
   // 정규표현식 패턴 지원
   let regexPattern: RegExp | null = null;
   try {
@@ -1665,7 +1665,7 @@ async function handleSearchFiles(args: any) {
   } catch {
     // 정규표현식이 아닌 경우 문자열 검색으로 처리
   }
-  
+
   // 파일 패턴 필터
   let fileRegex: RegExp | null = null;
   if (file_pattern) {
@@ -1680,7 +1680,7 @@ async function handleSearchFiles(args: any) {
       // 정규표현식 변환 실패시 단순 문자열 포함 검사
     }
   }
-  
+
   // 바이너리 파일 감지 함수
   function isBinaryFile(buffer: Buffer): boolean {
     // 첫 1KB를 검사하여 null 바이트가 있으면 바이너리로 판단
@@ -1690,7 +1690,7 @@ async function handleSearchFiles(args: any) {
     }
     return false;
   }
-  
+
   // 컨텍스트와 함께 매치된 라인들을 반환
   function getMatchedLinesWithContext(content: string, pattern: string | RegExp, contextLines: number): Array<{
     line_number: number;
@@ -1709,14 +1709,14 @@ async function handleSearchFiles(args: any) {
       context_before?: string[];
       context_after?: string[];
     }> = [];
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const searchLine = case_sensitive ? line : line.toLowerCase();
       let matched = false;
       let matchStart = -1;
       let matchEnd = -1;
-      
+
       if (regexPattern) {
         const regexMatch = line.match(regexPattern);
         if (regexMatch) {
@@ -1732,7 +1732,7 @@ async function handleSearchFiles(args: any) {
           matchEnd = index + searchPattern.length;
         }
       }
-      
+
       if (matched) {
         const matchInfo: any = {
           line_number: i + 1,
@@ -1740,76 +1740,78 @@ async function handleSearchFiles(args: any) {
           match_start: matchStart,
           match_end: matchEnd
         };
-        
+
         // 컨텍스트 라인 추가
         if (contextLines > 0) {
           matchInfo.context_before = [];
           matchInfo.context_after = [];
-          
+
           // 이전 라인들
           for (let j = Math.max(0, i - contextLines); j < i; j++) {
             matchInfo.context_before.push(lines[j]);
           }
-          
+
           // 이후 라인들
           for (let j = i + 1; j <= Math.min(lines.length - 1, i + contextLines); j++) {
             matchInfo.context_after.push(lines[j]);
           }
         }
-        
+
         matches.push(matchInfo);
       }
     }
-    
+
     return matches;
   }
 
   async function searchDirectory(dirPath: string) {
     if (results.length >= maxResults) return;
-    
+
     try {
       const entries = await fs.readdir(dirPath, { withFileTypes: true });
-      
+
       for (const entry of entries) {
         if (results.length >= maxResults) break;
-        
+
         const fullPath = path.join(dirPath, entry.name);
-        
+
         if (shouldExcludePath(fullPath)) continue;
-        
+
         if (entry.isFile()) {
           // 파일 패턴 필터링
           if (fileRegex && !fileRegex.test(entry.name)) continue;
-          
+
           const searchName = case_sensitive ? entry.name : entry.name.toLowerCase();
           let matched = false;
           let matchType = '';
           let matchedLines: any[] = [];
-          
+
           // 파일명 검색
           if (regexPattern ? regexPattern.test(entry.name) : searchName.includes(searchPattern)) {
             matched = true;
             matchType = 'filename';
           }
-          
+
           // 내용 검색 - ripgrep 사용
           if (!matched && content_search) {
             // NOTE: we now delegate bulk content searching to a single ripgrep call outside the per-file loop for performance.
             // The per-file loop will be skipped for content_search when a precomputed ripgrepResultsMap is present.
             const precomputed = (global as any).__precomputedRipgrepResults as Map<string, any[]> | undefined;
-            if (precomputed && precomputed.has(fullPath)) {
-              const ripResults = precomputed.get(fullPath) || [];
-              if (ripResults.length > 0) {
-                matched = true;
-                matchType = 'content';
-                matchedLines = ripResults.map((r: any) => ({
-                  line_number: r.line,
-                  line_content: r.match,
-                  match_start: r.column || 0,
-                  match_end: (r.column || 0) + r.match.length,
-                  context_before: r.context_before || [],
-                  context_after: r.context_after || []
-                }));
+            if (precomputed) {
+              if (precomputed.has(fullPath)) {
+                const ripResults = precomputed.get(fullPath) || [];
+                if (ripResults.length > 0) {
+                  matched = true;
+                  matchType = 'content';
+                  matchedLines = ripResults.map((r: any) => ({
+                    line_number: r.line,
+                    line_content: r.match,
+                    match_start: r.column || 0,
+                    match_end: (r.column || 0) + r.match.length,
+                    context_before: r.context_before || [],
+                    context_after: r.context_after || []
+                  }));
+                }
               }
             } else {
               try {
@@ -1817,19 +1819,19 @@ async function handleSearchFiles(args: any) {
                 if (stats.size < 10 * 1024 * 1024) { // 10MB 제한
                   // 바이너리 파일 체크
                   const buffer = await fs.readFile(fullPath);
-                  
+
                   if (!include_binary && isBinaryFile(buffer)) {
                     // 바이너리 파일은 건너뛰기
                     continue;
                   }
-                  
+
                   const content = buffer.toString('utf-8');
                   const searchContent = case_sensitive ? content : content.toLowerCase();
-                  
+
                   if (regexPattern ? regexPattern.test(content) : searchContent.includes(searchPattern)) {
                     matched = true;
                     matchType = 'content';
-                    
+
                     // 매치된 라인들과 컨텍스트 수집
                     matchedLines = getMatchedLinesWithContext(content, regexPattern || searchPattern, context_lines);
                   }
@@ -1853,7 +1855,7 @@ async function handleSearchFiles(args: any) {
               }
             }
           }
-          
+
           if (matched) {
             const stats = await fs.stat(fullPath);
             const result: any = {
@@ -1868,12 +1870,12 @@ async function handleSearchFiles(args: any) {
               permissions: stats.mode,
               is_binary: false
             };
-            
+
             // 내용 검색인 경우 매치된 라인 정보 추가
             if (matchType === 'content' && matchedLines.length > 0) {
               result.matched_lines = matchedLines.slice(0, 20); // 최대 20개 라인만
               result.total_matches = matchedLines.length;
-              
+
               // 바이너리 파일 여부 표시
               try {
                 const buffer = await fs.readFile(fullPath);
@@ -1882,7 +1884,7 @@ async function handleSearchFiles(args: any) {
                 // 파일 읽기 실패
               }
             }
-            
+
             results.push(result);
           }
         } else if (entry.isDirectory()) {
@@ -1894,14 +1896,17 @@ async function handleSearchFiles(args: any) {
       console.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
-  
+
   // If content_search is requested, run a single ripgrep search across the rootPath
   const startTime = Date.now();
 
+
+
   if (content_search) {
     try {
+
       // Run ripgrep once for the root and cache results into a map for fast lookup
-      const ripResults = await searchCode({
+      const ripResults = await searchCodeWithRipgrep({
         rootPath: safePath_resolved,
         pattern: pattern,
         filePattern: file_pattern,
@@ -1911,12 +1916,14 @@ async function handleSearchFiles(args: any) {
         contextLines: context_lines
       });
 
+
       // Map results by absolute file path
       const resultMap = new Map<string, any[]>();
       for (const r of ripResults) {
         if (!resultMap.has(r.file)) resultMap.set(r.file, []);
         resultMap.get(r.file)!.push(r);
       }
+
 
       // Expose map to per-file loop via global variable for this run
       (global as any).__precomputedRipgrepResults = resultMap;
@@ -1937,7 +1944,8 @@ async function handleSearchFiles(args: any) {
 
   const searchTime = Date.now() - startTime;
 
-  return {
+  // Simple response size safety check
+  const response: any = {
     results: results,
     total_found: results.length,
     search_pattern: pattern,
@@ -1953,23 +1961,47 @@ async function handleSearchFiles(args: any) {
     ripgrep_enhanced: true, // ripgrep 통합
     timestamp: new Date().toISOString()
   };
+
+  // Check response size and truncate if too large (800KB limit)
+  const responseSize = Buffer.byteLength(JSON.stringify(response), 'utf8');
+  const maxResponseSize = 800 * 1024; // 800KB
+  
+  if (responseSize > maxResponseSize) {
+    // Calculate how many results we can safely include
+    const avgResultSize = responseSize / results.length;
+    const safeResultCount = Math.floor(maxResponseSize / avgResultSize * 0.8); // 80% safety margin
+    
+    response.results = results.slice(0, safeResultCount);
+    response.total_found = results.length; // Keep original count
+    response.max_results_reached = true;
+    response.size_limited = true;
+    response.size_limit_info = {
+      original_results: results.length,
+      returned_results: safeResultCount,
+      response_size_kb: Math.round(responseSize / 1024),
+      limit_kb: 800,
+      message: "Results truncated due to response size limit"
+    };
+  }
+
+  return response;
 }
 
 async function handleGetDirectoryTree(args: any) {
   const { path: rootPath, max_depth = 3, show_hidden = false, include_files = true } = args;
-  
+
   const safePath_resolved = safePath(rootPath);
-  
+
   async function buildTree(currentPath: string, currentDepth: number): Promise<any> {
     if (currentDepth > max_depth) return null;
-    
+
     try {
       const stats = await fs.stat(currentPath);
       const name = path.basename(currentPath);
-      
+
       if (!show_hidden && name.startsWith('.')) return null;
       if (shouldExcludePath(currentPath)) return null;
-      
+
       const node: any = {
         name: name,
         path: currentPath,
@@ -1978,16 +2010,16 @@ async function handleGetDirectoryTree(args: any) {
         size_readable: formatSize(stats.size),
         modified: stats.mtime.toISOString()
       };
-      
+
       if (stats.isDirectory()) {
         node.children = [];
-        
+
         try {
           const entries = await fs.readdir(currentPath, { withFileTypes: true });
-          
+
           for (const entry of entries) {
             const childPath = path.join(currentPath, entry.name);
-            
+
             if (entry.isDirectory()) {
               const childNode = await buildTree(childPath, currentDepth + 1);
               if (childNode) node.children.push(childNode);
@@ -2001,15 +2033,15 @@ async function handleGetDirectoryTree(args: any) {
           node.error = 'Access denied';
         }
       }
-      
+
       return node;
     } catch {
       return null;
     }
   }
-  
+
   const tree = await buildTree(safePath_resolved, 0);
-  
+
   return {
     tree: tree,
     root_path: safePath_resolved,
@@ -2022,11 +2054,11 @@ async function handleGetDirectoryTree(args: any) {
 
 async function handleGetDiskUsage(args: any) {
   const { path: targetPath = '/' } = args;
-  
+
   try {
     const { stdout } = await execAsync(`df -h "${targetPath}"`);
     const lines = stdout.split('\n').filter(line => line.trim());
-    
+
     if (lines.length > 1) {
       const data = lines[1].split(/\s+/);
       return {
@@ -2043,7 +2075,7 @@ async function handleGetDiskUsage(args: any) {
   } catch {
     // Fallback for systems without df command
   }
-  
+
   return {
     error: 'Unable to get disk usage information',
     path: targetPath,
@@ -2053,45 +2085,45 @@ async function handleGetDiskUsage(args: any) {
 
 async function handleFindLargeFiles(args: any) {
   const { path: searchPath, min_size = '100MB', max_results = 50 } = args;
-  
+
   const safePath_resolved = safePath(searchPath);
   const maxResults = Math.min(max_results, 100);
-  
+
   // 크기 파싱 (예: 100MB -> bytes)
   const parseSize = (sizeStr: string): number => {
     const match = sizeStr.match(/^(\d+(\.\d+)?)\s*(B|KB|MB|GB|TB)?$/i);
     if (!match) return 100 * 1024 * 1024; // 기본값 100MB
-    
+
     const value = parseFloat(match[1]);
     const unit = (match[3] || 'B').toUpperCase();
-    
-    const units: {[key: string]: number} = {
+
+    const units: { [key: string]: number } = {
       'B': 1,
       'KB': 1024,
       'MB': 1024 * 1024,
       'GB': 1024 * 1024 * 1024,
       'TB': 1024 * 1024 * 1024 * 1024
     };
-    
+
     return value * (units[unit] || 1);
   };
-  
+
   const minSizeBytes = parseSize(min_size);
   const results: any[] = [];
-  
+
   async function findLargeFilesRecursive(dirPath: string) {
     if (results.length >= maxResults) return;
-    
+
     try {
       const entries = await fs.readdir(dirPath, { withFileTypes: true });
-      
+
       for (const entry of entries) {
         if (results.length >= maxResults) break;
-        
+
         const fullPath = path.join(dirPath, entry.name);
-        
+
         if (shouldExcludePath(fullPath)) continue;
-        
+
         if (entry.isFile()) {
           try {
             const stats = await fs.stat(fullPath);
@@ -2116,12 +2148,12 @@ async function handleFindLargeFiles(args: any) {
       // 권한 없는 디렉토리 무시
     }
   }
-  
+
   await findLargeFilesRecursive(safePath_resolved);
-  
+
   // 크기별로 정렬 (큰 것부터)
   results.sort((a, b) => b.size - a.size);
-  
+
   return {
     results: results,
     total_found: results.length,
@@ -2154,12 +2186,12 @@ async function searchCodeWithRipgrep(options: {
   contextLines?: number,
   timeout?: number,
 }): Promise<SearchResult[]> {
-  const { 
-    rootPath, 
-    pattern, 
-    filePattern, 
-    ignoreCase = true, 
-    maxResults = 1000, 
+  const {
+    rootPath,
+    pattern,
+    filePattern,
+    ignoreCase = true,
+    maxResults = 1000,
     includeHidden = false,
     contextLines = 0,
     timeout = 30000
@@ -2173,16 +2205,16 @@ async function searchCodeWithRipgrep(options: {
     const require = createRequire(import.meta.url);
     const ripgrepModule = require('@vscode/ripgrep');
     rgPath = ripgrepModule.rgPath;
-  } catch {
+  } catch (rgError) {
     // 폴백으로 시스템 rg 사용 시도
     try {
       await execAsync('which rg');
       rgPath = 'rg';
-    } catch {
+    } catch (systemRgError) {
       throw new Error('ripgrep not available');
     }
   }
-  
+
   // ripgrep 인수 구성
   const args = [
     '--json',
@@ -2191,19 +2223,21 @@ async function searchCodeWithRipgrep(options: {
     '--no-heading',
     '--with-filename',
   ];
-  
+
   if (ignoreCase) args.push('-i');
   if (maxResults) args.push('-m', maxResults.toString());
   if (includeHidden) args.push('--hidden');
   if (contextLines > 0) args.push('-C', contextLines.toString());
   if (filePattern) args.push('-g', filePattern);
-  
-  args.push('-e', pattern, rootPath);
+
   // Ensure pattern is not empty to avoid rg errors
   if (!pattern || pattern.trim().length === 0) {
-    throw new Error('Empty search pattern is not allowed');
+    // Return empty results for empty pattern instead of throwing error
+    return Promise.resolve([]);
   }
-  
+
+  args.push('-e', pattern, rootPath);
+
   return new Promise((resolve, reject) => {
     const results: SearchResult[] = [];
     const rg = spawn(rgPath, args);
@@ -2215,27 +2249,30 @@ async function searchCodeWithRipgrep(options: {
       if (settled) return;
       settled = true;
       if (timeoutId) clearTimeout(timeoutId);
-      try { rg.stdout.removeAllListeners(); } catch {}
-      try { rg.stderr.removeAllListeners(); } catch {}
-      try { rg.removeAllListeners(); } catch {}
-      try { if (!rg.killed) rg.kill(); } catch {}
-      resolve(results);
+      try { rg.stdout.removeAllListeners(); } catch { }
+      try { rg.stderr.removeAllListeners(); } catch { }
+      try { rg.removeAllListeners(); } catch { }
+      try { if (!rg.killed) rg.kill(); } catch { }
+
+      // Limit results to maxResults after processing all files
+      const limitedResults = results.slice(0, maxResults);
+      resolve(limitedResults);
     }
 
     function cleanupAndReject(err: any) {
       if (settled) return;
       settled = true;
       if (timeoutId) clearTimeout(timeoutId);
-      try { rg.stdout.removeAllListeners(); } catch {}
-      try { rg.stderr.removeAllListeners(); } catch {}
-      try { rg.removeAllListeners(); } catch {}
-      try { if (!rg.killed) rg.kill(); } catch {}
+      try { rg.stdout.removeAllListeners(); } catch { }
+      try { rg.stderr.removeAllListeners(); } catch { }
+      try { rg.removeAllListeners(); } catch { }
+      try { if (!rg.killed) rg.kill(); } catch { }
       reject(err instanceof Error ? err : new Error(String(err)));
     }
 
     if (timeout > 0) {
       timeoutId = setTimeout(() => {
-        try { if (!rg.killed) rg.kill(); } catch {}
+        try { if (!rg.killed) rg.kill(); } catch { }
         cleanupAndReject(new Error(`Search timed out after ${timeout}ms`));
       }, timeout);
     }
@@ -2268,10 +2305,8 @@ async function searchCodeWithRipgrep(options: {
         } catch (error) {
           console.error(`Error parsing ripgrep output: ${error}`);
         }
-        if (results.length >= maxResults) {
-          cleanupAndResolve();
-          return;
-        }
+        // Don't terminate early - let ripgrep finish processing all files
+        // We'll limit results at the end
       }
     });
 
@@ -2282,6 +2317,8 @@ async function searchCodeWithRipgrep(options: {
     rg.on('close', (code) => {
       if (settled) return;
       if (timeoutId) clearTimeout(timeoutId);
+
+
 
       if (remainder) {
         const leftover = remainder.trim().split('\n');
@@ -2347,7 +2384,7 @@ async function searchCode(options: {
 
 function getMimeType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
-  const mimeTypes: {[key: string]: string} = {
+  const mimeTypes: { [key: string]: string } = {
     '.txt': 'text/plain',
     '.html': 'text/html',
     '.css': 'text/css',
@@ -2361,7 +2398,7 @@ function getMimeType(filePath: string): string {
     '.zip': 'application/zip',
     '.md': 'text/markdown'
   };
-  
+
   return mimeTypes[ext] || 'application/octet-stream';
 }
 
@@ -2379,17 +2416,17 @@ function escapeRegExp(string: string): string {
 
 // 편집 관련 핸들러 함수들
 async function handleEditFile(args: any) {
-  const { 
-    path: filePath, 
+  const {
+    path: filePath,
     edits = [],
-    old_text, 
-    new_text, 
+    old_text,
+    new_text,
     backup = true,
     create_if_missing = false
   } = args;
-  
+
   const safePath_resolved = safePath(filePath);
-  
+
   // 파일 존재 확인
   let fileExists = true;
   try {
@@ -2400,36 +2437,36 @@ async function handleEditFile(args: any) {
       throw new Error(`File does not exist: ${safePath_resolved}`);
     }
   }
-  
+
   let content = '';
   if (fileExists) {
     content = await fs.readFile(safePath_resolved, 'utf-8');
   }
-  
+
   const originalContent = content;
   let modifiedContent = content;
   const changes: any[] = [];
   let totalChanges = 0;
   const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
-  
+
   // 백업 생성 (설정에 따라)
   if (fileExists && backup && CREATE_BACKUP_FILES) {
     await fs.copyFile(safePath_resolved, backupPath!);
   }
-  
+
   // 편집할 항목들 준비
   let editList = [...edits];
-  
+
   // 단일 편집 처리 (하위 호환성)
   if (old_text && new_text !== undefined) {
     editList.push({ old_text, new_text });
   }
-  
+
   try {
     // 여러 편집 처리
     for (const edit of editList) {
       const { old_text: oldText, new_text: newText } = edit;
-      
+
       if (!oldText || newText === undefined) {
         changes.push({
           old_text: oldText,
@@ -2439,14 +2476,14 @@ async function handleEditFile(args: any) {
         });
         continue;
       }
-      
+
       // 전체 문자열에서 텍스트 치환 (단순 문자열 치환만)
       const occurrences = (modifiedContent.match(new RegExp(escapeRegExp(oldText), 'g')) || []).length;
-      
+
       if (occurrences > 0) {
         modifiedContent = modifiedContent.replace(new RegExp(escapeRegExp(oldText), 'g'), newText);
         totalChanges += occurrences;
-        
+
         changes.push({
           old_text: oldText.length > 50 ? oldText.substring(0, 50) + '...' : oldText,
           new_text: newText.length > 50 ? newText.substring(0, 50) + '...' : newText,
@@ -2462,18 +2499,18 @@ async function handleEditFile(args: any) {
         });
       }
     }
-    
+
     // 디렉토리 생성
     const dir = path.dirname(safePath_resolved);
     await fs.mkdir(dir, { recursive: true });
-    
+
     // 수정된 내용 저장
     await fs.writeFile(safePath_resolved, modifiedContent, 'utf-8');
-    
+
     const stats = await fs.stat(safePath_resolved);
     const originalLines = originalContent.split('\n').length;
     const newLines = modifiedContent.split('\n').length;
-    
+
     return {
       message: `File edited successfully`,
       path: safePath_resolved,
@@ -2488,12 +2525,12 @@ async function handleEditFile(args: any) {
       size_readable: formatSize(stats.size),
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     // 에러 시 백업에서 복구 (단, 파일 쓰기 관련 에러만)
-    if (fileExists && backup && CREATE_BACKUP_FILES && backupPath && error instanceof Error && 
-        (error.message.includes('EACCES') || error.message.includes('EPERM') || 
-         error.message.includes('ENOENT') || error.message.includes('write'))) {
+    if (fileExists && backup && CREATE_BACKUP_FILES && backupPath && error instanceof Error &&
+      (error.message.includes('EACCES') || error.message.includes('EPERM') ||
+        error.message.includes('ENOENT') || error.message.includes('write'))) {
       try {
         await fs.copyFile(backupPath, safePath_resolved);
       } catch {
@@ -2506,16 +2543,16 @@ async function handleEditFile(args: any) {
 
 // 정교한 블록 편집 핸들러 (desktop-commander 방식)
 async function handleEditBlock(args: any) {
-  const { 
-    path: filePath, 
+  const {
+    path: filePath,
     old_text,
     new_text,
     expected_replacements = 1,
     backup = true
   } = args;
-  
+
   const safePath_resolved = safePath(filePath);
-  
+
   // 파일 존재 확인
   let fileExists = true;
   try {
@@ -2524,19 +2561,19 @@ async function handleEditBlock(args: any) {
     fileExists = false;
     throw new Error(`File does not exist: ${safePath_resolved}`);
   }
-  
+
   const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
   const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
-  
+
   // 백업 생성 (설정에 따라)
   if (backup && CREATE_BACKUP_FILES) {
     await fs.copyFile(safePath_resolved, backupPath!);
   }
-  
+
   try {
     // 정확한 문자열 매칭 확인
     const occurrences = (originalContent.match(new RegExp(escapeRegExp(old_text), 'g')) || []).length;
-    
+
     if (occurrences === 0) {
       return {
         message: 'Text not found',
@@ -2550,7 +2587,7 @@ async function handleEditBlock(args: any) {
         timestamp: new Date().toISOString()
       };
     }
-    
+
     if (expected_replacements !== occurrences) {
       return {
         message: 'Replacement count mismatch - operation cancelled for safety',
@@ -2565,25 +2602,25 @@ async function handleEditBlock(args: any) {
         timestamp: new Date().toISOString()
       };
     }
-    
+
     // 안전 확인 완료 - 편집 실행
     const modifiedContent = originalContent.replace(new RegExp(escapeRegExp(old_text), 'g'), new_text);
-    
+
     // 디렉토리 생성
     const dir = path.dirname(safePath_resolved);
     await fs.mkdir(dir, { recursive: true });
-    
+
     // 수정된 내용 저장
     await fs.writeFile(safePath_resolved, modifiedContent, 'utf-8');
-    
+
     const stats = await fs.stat(safePath_resolved);
     const originalLines = originalContent.split('\n').length;
     const newLines = modifiedContent.split('\n').length;
-    
+
     // 변경된 위치 정보 제공
     const beforeLines = originalContent.substring(0, originalContent.indexOf(old_text)).split('\n');
     const changeStartLine = beforeLines.length;
-    
+
     return {
       message: 'Block edited successfully with precise matching',
       path: safePath_resolved,
@@ -2602,7 +2639,7 @@ async function handleEditBlock(args: any) {
       size_readable: formatSize(stats.size),
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     // 에러 시 백업에서 복구
     if (backup && CREATE_BACKUP_FILES && backupPath) {
@@ -2619,7 +2656,7 @@ async function handleEditBlock(args: any) {
 // 여러개의 라인 기반 편집 (안전한 로직으로 업그레이드)
 async function handleEditMultipleBlocks(args: any) {
   const { path: filePath, edits, backup = true } = args;
-  
+
   // path 매개변수 필수 검증
   if (!filePath || typeof filePath !== 'string') {
     return {
@@ -2639,9 +2676,9 @@ async function handleEditMultipleBlocks(args: any) {
       timestamp: new Date().toISOString()
     };
   }
-  
+
   const safePath_resolved = safePath(filePath);
-  
+
   // 파일 존재 확인
   let fileExists = true;
   try {
@@ -2650,20 +2687,20 @@ async function handleEditMultipleBlocks(args: any) {
     fileExists = false;
     throw new Error(`File does not exist: ${safePath_resolved}`);
   }
-  
+
   const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
   const lines = originalContent.split('\n');
   let modifiedLines = [...lines];
-  
+
   const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
   let totalChanges = 0;
   const editResults: any[] = [];
-  
+
   // 백업 생성 (설정에 따라)
   if (backup && CREATE_BACKUP_FILES) {
     await fs.copyFile(safePath_resolved, backupPath!);
   }
-  
+
   try {
     // 편집을 라인 번호 역순으로 정렬 (뒤에서부터 편집하여 인덱스 변화 방지)
     const sortedEdits = [...edits].sort((a, b) => {
@@ -2671,13 +2708,13 @@ async function handleEditMultipleBlocks(args: any) {
       const lineB = b.line_number || 0;
       return lineB - lineA;
     });
-    
+
     for (let i = 0; i < sortedEdits.length; i++) {
       const edit = sortedEdits[i];
-      const { 
-        old_text, 
-        new_text, 
-        line_number, 
+      const {
+        old_text,
+        new_text,
+        line_number,
         mode = 'replace',
         expected_replacements = 1,
         word_boundary = false,
@@ -2690,33 +2727,33 @@ async function handleEditMultipleBlocks(args: any) {
         line_number: line_number,
         status: 'unknown'
       };
-      
+
       try {
         switch (mode) {
           case 'replace':
             if (old_text && new_text !== undefined) {
               // handleEditBlockSafe 스타일의 안전한 텍스트 교체
               const currentContent = modifiedLines.join('\n');
-              
+
               // 위험 분석
               const riskAnalysis = analyzeEditRisk(old_text, new_text, currentContent, {
                 word_boundary,
                 case_sensitive
               });
-              
+
               // 매칭 패턴 준비
               let searchPattern = old_text;
               let flags = case_sensitive ? 'g' : 'gi';
-              
+
               if (word_boundary) {
                 searchPattern = `\\b${escapeRegExp(old_text)}\\b`;
               } else {
                 searchPattern = escapeRegExp(old_text);
               }
-              
+
               const regex = new RegExp(searchPattern, flags);
               const occurrences = (currentContent.match(regex) || []).length;
-              
+
               if (occurrences === 0) {
                 editResult = {
                   ...editResult,
@@ -2741,7 +2778,7 @@ async function handleEditMultipleBlocks(args: any) {
                 const modifiedContent = currentContent.replace(regex, new_text);
                 modifiedLines = modifiedContent.split('\n');
                 changesCount = occurrences;
-                
+
                 editResult = {
                   ...editResult,
                   old_text_preview: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
@@ -2762,7 +2799,7 @@ async function handleEditMultipleBlocks(args: any) {
                 const originalLine = modifiedLines[idx];
                 modifiedLines[idx] = new_text;
                 changesCount++;
-                
+
                 editResult = {
                   ...editResult,
                   original_line: originalLine,
@@ -2779,14 +2816,14 @@ async function handleEditMultipleBlocks(args: any) {
               }
             }
             break;
-            
+
           case 'insert_before':
             if (line_number && new_text !== undefined) {
               const idx = line_number - 1;
               if (idx >= 0 && idx <= modifiedLines.length) {
                 modifiedLines.splice(idx, 0, new_text);
                 changesCount++;
-                
+
                 editResult = {
                   ...editResult,
                   inserted_line: new_text,
@@ -2802,14 +2839,14 @@ async function handleEditMultipleBlocks(args: any) {
               }
             }
             break;
-            
+
           case 'insert_after':
             if (line_number && new_text !== undefined) {
               const idx = line_number;
               if (idx >= 0 && idx <= modifiedLines.length) {
                 modifiedLines.splice(idx, 0, new_text);
                 changesCount++;
-                
+
                 editResult = {
                   ...editResult,
                   inserted_line: new_text,
@@ -2825,7 +2862,7 @@ async function handleEditMultipleBlocks(args: any) {
               }
             }
             break;
-            
+
           case 'delete_line':
             if (line_number) {
               const idx = line_number - 1;
@@ -2833,7 +2870,7 @@ async function handleEditMultipleBlocks(args: any) {
                 const deletedLine = modifiedLines[idx];
                 modifiedLines.splice(idx, 1);
                 changesCount++;
-                
+
                 editResult = {
                   ...editResult,
                   deleted_line: deletedLine,
@@ -2849,7 +2886,7 @@ async function handleEditMultipleBlocks(args: any) {
               }
             }
             break;
-            
+
           default:
             editResult = {
               ...editResult,
@@ -2857,10 +2894,10 @@ async function handleEditMultipleBlocks(args: any) {
               error: `Unsupported edit mode: ${mode}`
             };
         }
-        
+
         totalChanges += changesCount;
         editResults.push(editResult);
-        
+
       } catch (error) {
         editResults.push({
           ...editResult,
@@ -2869,20 +2906,20 @@ async function handleEditMultipleBlocks(args: any) {
         });
       }
     }
-    
+
     // 수정된 내용 저장 (변경사항이 있는 경우에만)
     if (totalChanges > 0) {
       const newContent = modifiedLines.join('\n');
-      
+
       // 디렉토리 생성
       const dir = path.dirname(safePath_resolved);
       await fs.mkdir(dir, { recursive: true });
-      
+
       await fs.writeFile(safePath_resolved, newContent, 'utf-8');
     }
-    
+
     const stats = await fs.stat(safePath_resolved);
-    
+
     return {
       message: `Safe multiple blocks edited successfully`,
       path: safePath_resolved,
@@ -2898,7 +2935,7 @@ async function handleEditMultipleBlocks(args: any) {
       size_readable: formatSize(stats.size),
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     // 에러 시 백업에서 복구
     if (backup && CREATE_BACKUP_FILES && backupPath) {
@@ -2913,21 +2950,21 @@ async function handleEditMultipleBlocks(args: any) {
 }
 
 async function handleExtractLines(args: any) {
-  const { 
-    path: filePath, 
-    line_numbers, 
-    start_line, 
-    end_line, 
-    pattern, 
-    context_lines = 0 
+  const {
+    path: filePath,
+    line_numbers,
+    start_line,
+    end_line,
+    pattern,
+    context_lines = 0
   } = args;
-  
+
   const safePath_resolved = safePath(filePath);
   const content = await fs.readFile(safePath_resolved, 'utf-8');
   const lines = content.split('\n');
-  
-  let extractedLines: Array<{line_number: number, content: string}> = [];
-  
+
+  let extractedLines: Array<{ line_number: number, content: string }> = [];
+
   if (line_numbers && Array.isArray(line_numbers)) {
     // 특정 라인 번호들 추출
     for (const lineNum of line_numbers) {
@@ -2959,7 +2996,7 @@ async function handleExtractLines(args: any) {
         // 컨텍스트 라인 포함
         const contextStart = Math.max(0, i - context_lines);
         const contextEnd = Math.min(lines.length - 1, i + context_lines);
-        
+
         for (let j = contextStart; j <= contextEnd; j++) {
           const existing = extractedLines.find(el => el.line_number === j + 1);
           if (!existing) {
@@ -2972,10 +3009,10 @@ async function handleExtractLines(args: any) {
       }
     }
   }
-  
+
   // 라인 번호순 정렬
   extractedLines.sort((a, b) => a.line_number - b.line_number);
-  
+
   return {
     extracted_lines: extractedLines,
     total_lines_extracted: extractedLines.length,
@@ -2990,12 +3027,12 @@ async function handleExtractLines(args: any) {
 // 여러개의 정교한 블록 편집을 한 번에 처리하는 핸들러 (handleEditBlockSafe와 동일한 로직 사용)
 async function handleEditBlocks(args: any) {
   const { path: filePath, edits, backup = true } = args;
-  
+
   // path 매개변수 필수 검증
   if (!filePath || typeof filePath !== 'string') {
     return {
       message: "Missing required parameter",
-      error: "path_parameter_missing", 
+      error: "path_parameter_missing",
       details: "The 'path' parameter is required for batch editing operations.",
       example: {
         correct_usage: "fast_edit_blocks({ path: '/path/to/file.txt', edits: [...] })",
@@ -3003,16 +3040,16 @@ async function handleEditBlocks(args: any) {
       },
       suggestions: [
         "Add the 'path' parameter with a valid file path",
-        "Ensure the path is a string value", 
+        "Ensure the path is a string value",
         "Use an absolute path for better reliability"
       ],
       status: "parameter_error",
       timestamp: new Date().toISOString()
     };
   }
-  
+
   const safePath_resolved = safePath(filePath);
-  
+
   // 파일 존재 확인
   let fileExists = true;
   try {
@@ -3021,31 +3058,31 @@ async function handleEditBlocks(args: any) {
     fileExists = false;
     throw new Error(`File does not exist: ${safePath_resolved}`);
   }
-  
+
   const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
   const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
-  
+
   // 백업 생성 (설정에 따라)
   if (backup && CREATE_BACKUP_FILES) {
     await fs.copyFile(safePath_resolved, backupPath!);
   }
-  
+
   try {
     let modifiedContent = originalContent;
     let totalChanges = 0;
     const editResults: any[] = [];
-    
+
     // 각 편집을 순차적으로 처리 (handleEditBlockSafe와 동일한 로직)
     for (let i = 0; i < edits.length; i++) {
       const edit = edits[i];
-      const { 
-        old_text, 
-        new_text, 
+      const {
+        old_text,
+        new_text,
         expected_replacements = 1,
         word_boundary = false,
         case_sensitive = true
       } = edit;
-      
+
       if (!old_text || new_text === undefined) {
         editResults.push({
           edit_index: i + 1,
@@ -3055,27 +3092,27 @@ async function handleEditBlocks(args: any) {
         });
         continue;
       }
-      
+
       // handleEditBlockSafe와 동일한 위험 분석
       const riskAnalysis = analyzeEditRisk(old_text, new_text, modifiedContent, {
         word_boundary,
         case_sensitive
       });
-      
+
       // handleEditBlockSafe와 동일한 매칭 패턴 준비
       let searchPattern = old_text;
       let flags = case_sensitive ? 'g' : 'gi';
-      
+
       if (word_boundary) {
         // 단어 경계 추가로 부분 매칭 방지
         searchPattern = `\\b${escapeRegExp(old_text)}\\b`;
       } else {
         searchPattern = escapeRegExp(old_text);
       }
-      
+
       const regex = new RegExp(searchPattern, flags);
       const occurrences = (modifiedContent.match(regex) || []).length;
-      
+
       if (occurrences === 0) {
         editResults.push({
           edit_index: i + 1,
@@ -3087,7 +3124,7 @@ async function handleEditBlocks(args: any) {
         });
         continue;
       }
-      
+
       if (expected_replacements !== occurrences) {
         editResults.push({
           edit_index: i + 1,
@@ -3100,11 +3137,11 @@ async function handleEditBlocks(args: any) {
         });
         continue;
       }
-      
+
       // 안전 확인 완료 - 편집 실행 (handleEditBlockSafe와 동일)
       modifiedContent = modifiedContent.replace(regex, new_text);
       totalChanges += occurrences;
-      
+
       editResults.push({
         edit_index: i + 1,
         old_text_preview: old_text.length > 100 ? old_text.substring(0, 100) + '...' : old_text,
@@ -3118,20 +3155,20 @@ async function handleEditBlocks(args: any) {
         case_sensitive_used: case_sensitive
       });
     }
-    
+
     // 수정된 내용 저장 (변경사항이 있는 경우에만)
     if (totalChanges > 0) {
       // 디렉토리 생성
       const dir = path.dirname(safePath_resolved);
       await fs.mkdir(dir, { recursive: true });
-      
+
       await fs.writeFile(safePath_resolved, modifiedContent, 'utf-8');
     }
-    
+
     const stats = await fs.stat(safePath_resolved);
     const originalLines = originalContent.split('\n').length;
     const newLines = modifiedContent.split('\n').length;
-    
+
     return {
       message: `Safe multiple block edits processed successfully`,
       path: safePath_resolved,
@@ -3147,7 +3184,7 @@ async function handleEditBlocks(args: any) {
       size_readable: formatSize(stats.size),
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     // 에러 시 백업에서 복구
     if (backup && CREATE_BACKUP_FILES && backupPath) {
@@ -3176,7 +3213,7 @@ async function handleSearchCode(args: any) {
   } = args;
 
   const safePath_resolved = safePath(searchPath);
-  
+
   try {
     // ripgrep을 사용한 고성능 검색 시도
     const searchResults = await searchCode({
@@ -3255,7 +3292,7 @@ async function handleSearchCode(args: any) {
   } catch (error) {
     // ripgrep 실패시 폴백 로직
     console.warn('Ripgrep search failed, using fallback:', error);
-    
+
     // 기존 네이티브 검색으로 폴백
     return handleSearchCodeFallback(args);
   }
@@ -3330,7 +3367,7 @@ async function handleSearchCodeFallback(args: any) {
     context_after: string[];
   }>): string {
     let output = `${filePath}:\n`;
-    
+
     for (const match of matches) {
       // 컨텍스트 이전 라인들
       if (match.context_before && match.context_before.length > 0) {
@@ -3339,14 +3376,14 @@ async function handleSearchCodeFallback(args: any) {
           output += `  ${lineNum}: ${line}\n`;
         });
       }
-      
+
       // 매치된 라인 (하이라이트 표시)
       const line = match.line_content;
-      const highlighted = line.substring(0, match.match_start) + 
-                         '**' + line.substring(match.match_start, match.match_end) + '**' +
-                         line.substring(match.match_end);
+      const highlighted = line.substring(0, match.match_start) +
+        '**' + line.substring(match.match_start, match.match_end) + '**' +
+        line.substring(match.match_end);
       output += `  ${match.line_number}: ${highlighted}\n`;
-      
+
       // 컨텍스트 이후 라인들
       if (match.context_after && match.context_after.length > 0) {
         match.context_after.forEach((line, index) => {
@@ -3354,10 +3391,10 @@ async function handleSearchCodeFallback(args: any) {
           output += `  ${lineNum}: ${line}\n`;
         });
       }
-      
+
       output += '\n';
     }
-    
+
     return output;
   }
 
@@ -3374,7 +3411,7 @@ async function handleSearchCodeFallback(args: any) {
 
         // 숨김 파일 필터링
         if (!include_hidden && entry.name.startsWith('.')) continue;
-        
+
         if (shouldExcludePath(fullPath)) continue;
 
         if (entry.isFile()) {
@@ -3389,12 +3426,12 @@ async function handleSearchCodeFallback(args: any) {
 
           try {
             const stats = await fs.stat(fullPath);
-            
+
             // 파일 크기 제한
             if (stats.size > maxFileSize) continue;
 
             const buffer = await fs.readFile(fullPath);
-            
+
             // 바이너리 파일 스킵
             if (isBinaryFile(buffer)) continue;
 
@@ -3414,7 +3451,7 @@ async function handleSearchCodeFallback(args: any) {
               const line = lines[i];
               const searchLine = case_sensitive ? line : line.toLowerCase();
               const searchPattern = case_sensitive ? pattern : pattern.toLowerCase();
-              
+
               let matched = false;
               let matchStart = -1;
               let matchEnd = -1;
@@ -3498,7 +3535,7 @@ async function handleSearchCodeFallback(args: any) {
   // desktop-commander 스타일의 통합 출력 생성
   let combinedOutput = '';
   let totalMatches = 0;
-  
+
   for (const result of results) {
     combinedOutput += result.formatted_output;
     totalMatches += result.total_matches;
@@ -3530,27 +3567,27 @@ main().catch((error) => {
 // 새로운 복잡한 파일 작업 핸들러들
 
 async function handleCopyFile(args: any) {
-  const { 
-    source, 
-    destination, 
-    overwrite = false, 
-    preserve_timestamps = true, 
+  const {
+    source,
+    destination,
+    overwrite = false,
+    preserve_timestamps = true,
     recursive = true,
-    create_dirs = true 
+    create_dirs = true
   } = args;
-  
+
   const sourcePath = safePath(source);
   const destPath = safePath(destination);
-  
+
   try {
     const sourceStats = await fs.stat(sourcePath);
-    
+
     // 대상 디렉토리 생성
     if (create_dirs) {
       const destDir = path.dirname(destPath);
       await fs.mkdir(destDir, { recursive: true });
     }
-    
+
     // 덮어쓰기 검사
     let destExists = false;
     try {
@@ -3564,7 +3601,7 @@ async function handleCopyFile(args: any) {
         throw error;
       }
     }
-    
+
     if (sourceStats.isDirectory()) {
       if (!recursive) {
         throw new Error('Cannot copy directory without recursive option');
@@ -3572,15 +3609,15 @@ async function handleCopyFile(args: any) {
       await copyDirectoryRecursive(sourcePath, destPath, overwrite, preserve_timestamps);
     } else {
       await fs.copyFile(sourcePath, destPath);
-      
+
       // 타임스탬프 보존
       if (preserve_timestamps) {
         await fs.utimes(destPath, sourceStats.atime, sourceStats.mtime);
       }
     }
-    
+
     const destStats = await fs.stat(destPath);
-    
+
     return {
       message: `${sourceStats.isDirectory() ? 'Directory' : 'File'} copied successfully`,
       source: sourcePath,
@@ -3594,7 +3631,7 @@ async function handleCopyFile(args: any) {
       recursive: recursive && sourceStats.isDirectory(),
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     throw new Error(`Copy failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -3602,15 +3639,15 @@ async function handleCopyFile(args: any) {
 
 async function copyDirectoryRecursive(source: string, destination: string, overwrite: boolean, preserveTimestamps: boolean) {
   await fs.mkdir(destination, { recursive: true });
-  
+
   const entries = await fs.readdir(source, { withFileTypes: true });
-  
+
   for (const entry of entries) {
     const sourcePath = path.join(source, entry.name);
     const destPath = path.join(destination, entry.name);
-    
+
     if (shouldExcludePath(sourcePath)) continue;
-    
+
     if (entry.isDirectory()) {
       await copyDirectoryRecursive(sourcePath, destPath, overwrite, preserveTimestamps);
     } else {
@@ -3624,9 +3661,9 @@ async function copyDirectoryRecursive(source: string, destination: string, overw
       } catch {
         // 파일이 없으면 계속 진행
       }
-      
+
       await fs.copyFile(sourcePath, destPath);
-      
+
       if (preserveTimestamps) {
         const sourceStats = await fs.stat(sourcePath);
         await fs.utimes(destPath, sourceStats.atime, sourceStats.mtime);
@@ -3636,38 +3673,38 @@ async function copyDirectoryRecursive(source: string, destination: string, overw
 }
 
 async function handleMoveFile(args: any) {
-  const { 
-    source, 
-    destination, 
-    overwrite = false, 
+  const {
+    source,
+    destination,
+    overwrite = false,
     create_dirs = true,
-    backup_if_exists = false 
+    backup_if_exists = false
   } = args;
-  
+
   const sourcePath = safePath(source);
   const destPath = safePath(destination);
-  
+
   try {
     const sourceStats = await fs.stat(sourcePath);
-    
+
     // 대상 디렉토리 생성
     if (create_dirs) {
       const destDir = path.dirname(destPath);
       await fs.mkdir(destDir, { recursive: true });
     }
-    
+
     // 덮어쓰기 및 백업 처리
     let destExists = false;
     let backupPath = null;
     try {
       const destStats = await fs.stat(destPath);
       destExists = true;
-      
+
       if (backup_if_exists && CREATE_BACKUP_FILES) {
         backupPath = `${destPath}.backup.${Date.now()}`;
         await fs.copyFile(destPath, backupPath);
       }
-      
+
       if (!overwrite && !backup_if_exists) {
         throw new Error(`Destination already exists: ${destPath}`);
       }
@@ -3676,7 +3713,7 @@ async function handleMoveFile(args: any) {
         throw error;
       }
     }
-    
+
     // 같은 파티션에서는 rename, 다른 파티션에서는 copy + delete
     try {
       await fs.rename(sourcePath, destPath);
@@ -3694,9 +3731,9 @@ async function handleMoveFile(args: any) {
         throw error;
       }
     }
-    
+
     const destStats = await fs.stat(destPath);
-    
+
     return {
       message: `${sourceStats.isDirectory() ? 'Directory' : 'File'} moved successfully`,
       source: sourcePath,
@@ -3709,38 +3746,38 @@ async function handleMoveFile(args: any) {
       cross_device_move: false, // 실제 구현에서는 감지 가능
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     throw new Error(`Move failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 async function handleDeleteFile(args: any) {
-  const { 
-    path: targetPath, 
-    recursive = false, 
+  const {
+    path: targetPath,
+    recursive = false,
     force = false,
     backup_before_delete = false,
-    confirm_delete = true 
+    confirm_delete = true
   } = args;
-  
+
   const resolvedPath = safePath(targetPath);
-  
+
   try {
     const stats = await fs.stat(resolvedPath);
-    
+
     // 안전장치: 중요한 디렉토리 보호
     const protectedPaths = ['/Users', '/home', '/', '/System', '/usr', '/bin', '/sbin'];
     if (protectedPaths.some(protectedPath => resolvedPath.startsWith(protectedPath) && resolvedPath.split('/').length <= 3)) {
       throw new Error(`Cannot delete protected system path: ${resolvedPath}`);
     }
-    
+
     // 확인 단계
     if (confirm_delete && !force) {
       const itemType = stats.isDirectory() ? 'directory' : 'file';
       const warningMessage = `WARNING: This will permanently delete the ${itemType}: ${resolvedPath}`;
       console.warn(warningMessage);
-      
+
       // 실제 구현에서는 대화형 확인이 어려우므로 force 플래그 요구
       if (!force) {
         return {
@@ -3755,7 +3792,7 @@ async function handleDeleteFile(args: any) {
         };
       }
     }
-    
+
     // 백업 생성
     let backupPath = null;
     if (backup_before_delete && CREATE_BACKUP_FILES) {
@@ -3766,7 +3803,7 @@ async function handleDeleteFile(args: any) {
         await fs.copyFile(resolvedPath, backupPath);
       }
     }
-    
+
     // 삭제 실행
     if (stats.isDirectory()) {
       if (!recursive) {
@@ -3782,7 +3819,7 @@ async function handleDeleteFile(args: any) {
     } else {
       await fs.unlink(resolvedPath);
     }
-    
+
     return {
       message: `${stats.isDirectory() ? 'Directory' : 'File'} deleted successfully`,
       path: resolvedPath,
@@ -3795,36 +3832,36 @@ async function handleDeleteFile(args: any) {
       force_used: force,
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     throw new Error(`Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 async function handleBatchFileOperations(args: any) {
-  const { 
-    operations = [], 
-    stop_on_error = true, 
+  const {
+    operations = [],
+    stop_on_error = true,
     dry_run = false,
-    create_backup = false 
+    create_backup = false
   } = args;
-  
+
   const results: any[] = [];
   let successCount = 0;
   let errorCount = 0;
   let backupDir = null;
-  
+
   // 백업 디렉토리 생성 (실제 실행시에만)
   if (create_backup && !dry_run && CREATE_BACKUP_FILES) {
     backupDir = `/tmp/mcp_batch_backup_${Date.now()}`;
     await fs.mkdir(backupDir, { recursive: true });
   }
-  
+
   try {
     for (let i = 0; i < operations.length; i++) {
       const operation = operations[i];
       const { operation: op, source, destination, overwrite = false } = operation;
-      
+
       try {
         // 입력 검증
         if (!source) {
@@ -3833,10 +3870,10 @@ async function handleBatchFileOperations(args: any) {
         if (['copy', 'move', 'rename'].includes(op) && !destination) {
           throw new Error(`Destination path is required for ${op} operation`);
         }
-        
+
         const sourcePath = safePath(source);
         let result: any = { operation: op, source: sourcePath };
-        
+
         if (dry_run) {
           // Dry run: 실제 실행 없이 검증만
           const sourceStats = await fs.stat(sourcePath);
@@ -3844,7 +3881,7 @@ async function handleBatchFileOperations(args: any) {
           result.source_exists = true;
           result.source_type = sourceStats.isDirectory() ? 'directory' : 'file';
           result.source_size = sourceStats.size;
-          
+
           if (destination) {
             const destPath = safePath(destination);
             result.destination = destPath;
@@ -3856,12 +3893,12 @@ async function handleBatchFileOperations(args: any) {
               result.destination_exists = false;
             }
           }
-          
+
           result.status = 'would_execute';
         } else {
           // 실제 실행
           let backupPath = null;
-          
+
           // 개별 백업 생성
           if (create_backup && backupDir && CREATE_BACKUP_FILES) {
             const sourceStats = await fs.stat(sourcePath);
@@ -3872,7 +3909,7 @@ async function handleBatchFileOperations(args: any) {
               await fs.copyFile(sourcePath, backupPath);
             }
           }
-          
+
           switch (op) {
             case 'copy':
               const copyResult = await handleCopyFile({
@@ -3884,7 +3921,7 @@ async function handleBatchFileOperations(args: any) {
               });
               result = { ...result, ...copyResult, backup_created: backupPath };
               break;
-              
+
             case 'move':
             case 'rename':
               const moveResult = await handleMoveFile({
@@ -3895,7 +3932,7 @@ async function handleBatchFileOperations(args: any) {
               });
               result = { ...result, ...moveResult, backup_created: backupPath };
               break;
-              
+
             case 'delete':
               const deleteResult = await handleDeleteFile({
                 path: sourcePath,
@@ -3905,17 +3942,17 @@ async function handleBatchFileOperations(args: any) {
               });
               result = { ...result, ...deleteResult, backup_created: backupPath };
               break;
-              
+
             default:
               throw new Error(`Unsupported operation: ${op}`);
           }
-          
+
           result.status = 'success';
         }
-        
+
         results.push(result);
         successCount++;
-        
+
       } catch (error) {
         const errorResult = {
           operation: op,
@@ -3925,16 +3962,16 @@ async function handleBatchFileOperations(args: any) {
           error: error instanceof Error ? error.message : 'Unknown error',
           dry_run: dry_run
         };
-        
+
         results.push(errorResult);
         errorCount++;
-        
+
         if (stop_on_error) {
           break;
         }
       }
     }
-    
+
     return {
       message: `Batch operations ${dry_run ? 'analyzed' : 'completed'}`,
       total_operations: operations.length,
@@ -3947,34 +3984,34 @@ async function handleBatchFileOperations(args: any) {
       stopped_on_error: stop_on_error && errorCount > 0,
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     throw new Error(`Batch operations failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 async function handleCompressFiles(args: any) {
-  const { 
-    paths = [], 
-    output_path, 
+  const {
+    paths = [],
+    output_path,
     format = 'zip',
     compression_level = 6,
-    exclude_patterns = [] 
+    exclude_patterns = []
   } = args;
-  
+
   // Node.js 내장 모듈로 간단한 압축 구현
   // 실제 구현에서는 archiver 등의 라이브러리 사용 권장
-  
+
   const outputPath = safePath(output_path);
   const resolvedPaths = paths.map((p: string) => safePath(p));
-  
+
   try {
     // 압축할 파일들 수집
-    const filesToCompress: Array<{source: string, archive_path: string}> = [];
-    
+    const filesToCompress: Array<{ source: string, archive_path: string }> = [];
+
     for (const inputPath of resolvedPaths) {
       const stats = await fs.stat(inputPath);
-      
+
       if (stats.isFile()) {
         if (!shouldExcludeFromCompression(inputPath, exclude_patterns)) {
           filesToCompress.push({
@@ -3986,7 +4023,7 @@ async function handleCompressFiles(args: any) {
         await collectFilesForCompression(inputPath, '', filesToCompress, exclude_patterns);
       }
     }
-    
+
     // 간단한 tar 압축 구현 (실제로는 외부 도구 사용)
     if (format.startsWith('tar')) {
       await createTarArchive(filesToCompress, outputPath, format, compression_level);
@@ -3994,13 +4031,13 @@ async function handleCompressFiles(args: any) {
       // ZIP은 더 복잡하므로 외부 도구 필요
       throw new Error('ZIP compression requires additional dependencies. Use tar format instead.');
     }
-    
+
     const outputStats = await fs.stat(outputPath);
     const totalOriginalSize = filesToCompress.reduce(async (acc, file) => {
       const stats = await fs.stat(file.source);
       return (await acc) + stats.size;
     }, Promise.resolve(0));
-    
+
     return {
       message: 'Files compressed successfully',
       output_path: outputPath,
@@ -4015,7 +4052,7 @@ async function handleCompressFiles(args: any) {
       exclude_patterns: exclude_patterns,
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     throw new Error(`Compression failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -4024,7 +4061,7 @@ async function handleCompressFiles(args: any) {
 function shouldExcludeFromCompression(filePath: string, excludePatterns: string[]): boolean {
   const fileName = path.basename(filePath);
   const allPatterns = [...DEFAULT_EXCLUDE_PATTERNS, ...excludePatterns];
-  
+
   return allPatterns.some(pattern => {
     if (pattern.includes('*') || pattern.includes('?')) {
       const regex = new RegExp(pattern.replace(/\*/g, '.*').replace(/\?/g, '.'));
@@ -4035,21 +4072,21 @@ function shouldExcludeFromCompression(filePath: string, excludePatterns: string[
 }
 
 async function collectFilesForCompression(
-  dirPath: string, 
-  archivePath: string, 
-  fileList: Array<{source: string, archive_path: string}>,
+  dirPath: string,
+  archivePath: string,
+  fileList: Array<{ source: string, archive_path: string }>,
   excludePatterns: string[]
 ) {
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
-  
+
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
     const entryArchivePath = path.join(archivePath, entry.name);
-    
+
     if (shouldExcludeFromCompression(fullPath, excludePatterns)) {
       continue;
     }
-    
+
     if (entry.isFile()) {
       fileList.push({
         source: fullPath,
@@ -4062,37 +4099,37 @@ async function collectFilesForCompression(
 }
 
 async function createTarArchive(
-  files: Array<{source: string, archive_path: string}>, 
-  outputPath: string, 
+  files: Array<{ source: string, archive_path: string }>,
+  outputPath: string,
   format: string,
   compressionLevel: number
 ) {
   // 간단한 tar 명령어 사용 (실제 구현)
   const tempListFile = `/tmp/tar_list_${Date.now()}.txt`;
-  
+
   try {
     // 파일 목록 작성
     const fileListContent = files.map(f => f.source).join('\n');
     await fs.writeFile(tempListFile, fileListContent);
-    
+
     // tar 명령어 구성
     let tarCommand = `tar -cf "${outputPath}"`;
-    
+
     if (format === 'tar.gz') {
       tarCommand = `tar -czf "${outputPath}"`;
     } else if (format === 'tar.bz2') {
       tarCommand = `tar -cjf "${outputPath}"`;
     }
-    
+
     tarCommand += ` -T "${tempListFile}"`;
-    
+
     // tar 실행
     const { stdout, stderr } = await execAsync(tarCommand);
-    
+
     if (stderr) {
       console.warn('Tar warnings:', stderr);
     }
-    
+
   } finally {
     // 임시 파일 정리
     try {
@@ -4104,37 +4141,37 @@ async function createTarArchive(
 }
 
 async function handleExtractArchive(args: any) {
-  const { 
-    archive_path, 
+  const {
+    archive_path,
     extract_to = '.',
     overwrite = false,
     create_dirs = true,
     preserve_permissions = true,
-    extract_specific = [] 
+    extract_specific = []
   } = args;
-  
+
   const archivePath = safePath(archive_path);
   const extractPath = safePath(extract_to);
-  
+
   try {
     const archiveStats = await fs.stat(archivePath);
-    
+
     if (create_dirs) {
       await fs.mkdir(extractPath, { recursive: true });
     }
-    
+
     // 아카이브 형식 감지
     const ext = path.extname(archivePath).toLowerCase();
     let format = 'unknown';
-    
+
     if (ext === '.tar' || archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tar.bz2')) {
       format = 'tar';
     } else if (ext === '.zip') {
       format = 'zip';
     }
-    
+
     let extractedFiles: string[] = [];
-    
+
     if (format === 'tar') {
       extractedFiles = await extractTarArchive(archivePath, extractPath, overwrite, extract_specific);
     } else if (format === 'zip') {
@@ -4142,7 +4179,7 @@ async function handleExtractArchive(args: any) {
     } else {
       throw new Error(`Unsupported archive format: ${ext}`);
     }
-    
+
     return {
       message: 'Archive extracted successfully',
       archive_path: archivePath,
@@ -4157,29 +4194,29 @@ async function handleExtractArchive(args: any) {
       specific_files: extract_specific.length > 0 ? extract_specific : null,
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     throw new Error(`Archive extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 async function extractTarArchive(
-  archivePath: string, 
-  extractPath: string, 
+  archivePath: string,
+  extractPath: string,
   overwrite: boolean,
   specificFiles: string[]
 ): Promise<string[]> {
   // tar 명령어로 압축 해제
   let tarCommand = `tar -tf "${archivePath}"`; // 파일 목록 먼저 확인
-  
+
   try {
     const { stdout: fileList } = await execAsync(tarCommand);
     const files = fileList.trim().split('\n').filter(f => f.trim());
-    
+
     // 특정 파일만 추출하는 경우
-    const filesToExtract = specificFiles.length > 0 ? 
+    const filesToExtract = specificFiles.length > 0 ?
       files.filter(f => specificFiles.some(sf => f.includes(sf))) : files;
-    
+
     // 덮어쓰기 확인
     if (!overwrite) {
       for (const file of filesToExtract) {
@@ -4194,56 +4231,56 @@ async function extractTarArchive(
         }
       }
     }
-    
+
     // 실제 압축 해제
     let extractCommand = `tar -xf "${archivePath}" -C "${extractPath}"`;
-    
+
     if (specificFiles.length > 0) {
       const tempListFile = `/tmp/extract_list_${Date.now()}.txt`;
       await fs.writeFile(tempListFile, filesToExtract.join('\n'));
       extractCommand += ` -T "${tempListFile}"`;
-      
+
       try {
         await execAsync(extractCommand);
       } finally {
-        await fs.unlink(tempListFile).catch(() => {});
+        await fs.unlink(tempListFile).catch(() => { });
       }
     } else {
       await execAsync(extractCommand);
     }
-    
+
     return filesToExtract;
-    
+
   } catch (error) {
     throw new Error(`Tar extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 async function handleSyncDirectories(args: any) {
-  const { 
-    source_dir, 
+  const {
+    source_dir,
     target_dir,
     sync_mode = 'update',
     delete_extra = false,
     preserve_newer = true,
     dry_run = false,
-    exclude_patterns = ['.git', 'node_modules', '.DS_Store'] 
+    exclude_patterns = ['.git', 'node_modules', '.DS_Store']
   } = args;
-  
+
   const sourcePath = safePath(source_dir);
   const targetPath = safePath(target_dir);
-  
+
   try {
     const sourceStats = await fs.stat(sourcePath);
     if (!sourceStats.isDirectory()) {
       throw new Error('Source must be a directory');
     }
-    
+
     // 대상 디렉토리 생성
     if (!dry_run) {
       await fs.mkdir(targetPath, { recursive: true });
     }
-    
+
     const syncResults = {
       copied: [] as string[],
       updated: [] as string[],
@@ -4251,7 +4288,7 @@ async function handleSyncDirectories(args: any) {
       skipped: [] as string[],
       errors: [] as string[]
     };
-    
+
     // 소스 디렉토리 스캔
     await syncDirectoryRecursive(sourcePath, targetPath, '', syncResults, {
       sync_mode,
@@ -4260,7 +4297,7 @@ async function handleSyncDirectories(args: any) {
       dry_run,
       exclude_patterns
     });
-    
+
     // 대상에만 있는 파일들 처리 (삭제)
     if (delete_extra) {
       await cleanupExtraFiles(sourcePath, targetPath, '', syncResults, {
@@ -4268,10 +4305,10 @@ async function handleSyncDirectories(args: any) {
         exclude_patterns
       });
     }
-    
-    const totalOperations = syncResults.copied.length + syncResults.updated.length + 
-                          syncResults.deleted.length + syncResults.skipped.length;
-    
+
+    const totalOperations = syncResults.copied.length + syncResults.updated.length +
+      syncResults.deleted.length + syncResults.skipped.length;
+
     return {
       message: `Directory sync ${dry_run ? 'analyzed' : 'completed'}`,
       source_directory: sourcePath,
@@ -4296,15 +4333,15 @@ async function handleSyncDirectories(args: any) {
       exclude_patterns: exclude_patterns,
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     throw new Error(`Directory sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 async function syncDirectoryRecursive(
-  sourcePath: string, 
-  targetPath: string, 
+  sourcePath: string,
+  targetPath: string,
   relativePath: string,
   results: any,
   options: any
@@ -4312,45 +4349,45 @@ async function syncDirectoryRecursive(
   try {
     const currentSourcePath = path.join(sourcePath, relativePath);
     const currentTargetPath = path.join(targetPath, relativePath);
-    
+
     const entries = await fs.readdir(currentSourcePath, { withFileTypes: true });
-    
+
     for (const entry of entries) {
       const entryRelativePath = path.join(relativePath, entry.name);
       const entrySourcePath = path.join(sourcePath, entryRelativePath);
       const entryTargetPath = path.join(targetPath, entryRelativePath);
-      
+
       // 제외 패턴 확인
       if (shouldExcludeFromSync(entrySourcePath, options.exclude_patterns)) {
         results.skipped.push(entryRelativePath);
         continue;
       }
-      
+
       try {
         if (entry.isDirectory()) {
           // 디렉토리 생성
           if (!options.dry_run) {
             await fs.mkdir(entryTargetPath, { recursive: true });
           }
-          
+
           // 재귀적으로 처리
           await syncDirectoryRecursive(sourcePath, targetPath, entryRelativePath, results, options);
-          
+
         } else if (entry.isFile()) {
           const sourceStats = await fs.stat(entrySourcePath);
           let shouldCopy = false;
           let operation = '';
-          
+
           try {
             const targetStats = await fs.stat(entryTargetPath);
-            
+
             // 동기화 모드에 따른 처리
             switch (options.sync_mode) {
               case 'mirror':
                 shouldCopy = true;
                 operation = 'updated';
                 break;
-                
+
               case 'update':
                 if (sourceStats.mtime > targetStats.mtime) {
                   shouldCopy = true;
@@ -4363,7 +4400,7 @@ async function syncDirectoryRecursive(
                   operation = 'updated';
                 }
                 break;
-                
+
               case 'merge':
                 if (sourceStats.mtime > targetStats.mtime) {
                   shouldCopy = true;
@@ -4374,7 +4411,7 @@ async function syncDirectoryRecursive(
                 }
                 break;
             }
-            
+
           } catch (error) {
             // 대상 파일이 없는 경우
             if ((error as any).code === 'ENOENT') {
@@ -4384,14 +4421,14 @@ async function syncDirectoryRecursive(
               throw error;
             }
           }
-          
+
           if (shouldCopy) {
             if (!options.dry_run) {
               await fs.copyFile(entrySourcePath, entryTargetPath);
               // 타임스탬프 보존
               await fs.utimes(entryTargetPath, sourceStats.atime, sourceStats.mtime);
             }
-            
+
             if (operation === 'copied') {
               results.copied.push(entryRelativePath);
             } else {
@@ -4399,12 +4436,12 @@ async function syncDirectoryRecursive(
             }
           }
         }
-        
+
       } catch (error) {
         results.errors.push(`${entryRelativePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
-    
+
   } catch (error) {
     results.errors.push(`${relativePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -4412,7 +4449,7 @@ async function syncDirectoryRecursive(
 
 function shouldExcludeFromSync(filePath: string, excludePatterns: string[]): boolean {
   const pathParts = filePath.split(path.sep);
-  
+
   return excludePatterns.some(pattern => {
     return pathParts.some(part => {
       if (pattern.includes('*') || pattern.includes('?')) {
@@ -4425,36 +4462,36 @@ function shouldExcludeFromSync(filePath: string, excludePatterns: string[]): boo
 }
 
 async function cleanupExtraFiles(
-  sourcePath: string, 
-  targetPath: string, 
+  sourcePath: string,
+  targetPath: string,
   relativePath: string,
   results: any,
   options: any
 ) {
   try {
     const currentTargetPath = path.join(targetPath, relativePath);
-    
+
     const entries = await fs.readdir(currentTargetPath, { withFileTypes: true });
-    
+
     for (const entry of entries) {
       const entryRelativePath = path.join(relativePath, entry.name);
       const entrySourcePath = path.join(sourcePath, entryRelativePath);
       const entryTargetPath = path.join(targetPath, entryRelativePath);
-      
+
       // 제외 패턴 확인
       if (shouldExcludeFromSync(entryTargetPath, options.exclude_patterns)) {
         continue;
       }
-      
+
       try {
         // 소스에 해당 파일/디렉토리가 있는지 확인
         await fs.access(entrySourcePath);
-        
+
         // 있으면 디렉토리인 경우 재귀적으로 처리
         if (entry.isDirectory()) {
           await cleanupExtraFiles(sourcePath, targetPath, entryRelativePath, results, options);
         }
-        
+
       } catch (error) {
         // 소스에 없는 파일/디렉토리 발견 -> 삭제
         if ((error as any).code === 'ENOENT') {
@@ -4469,7 +4506,7 @@ async function cleanupExtraFiles(
         }
       }
     }
-    
+
   } catch (error) {
     // 대상 디렉토리가 없는 경우 등은 무시
   }
@@ -4478,8 +4515,8 @@ async function cleanupExtraFiles(
 
 // 안전한 편집 핸들러 함수들
 async function handleEditBlockSafe(args: any) {
-  const { 
-    path: filePath, 
+  const {
+    path: filePath,
     old_text,
     new_text,
     expected_replacements = 1,
@@ -4488,7 +4525,7 @@ async function handleEditBlockSafe(args: any) {
     preview_only = false,
     case_sensitive = true
   } = args;
-  
+
   // path 매개변수 필수 검증
   if (!filePath || typeof filePath !== 'string') {
     return {
@@ -4508,9 +4545,9 @@ async function handleEditBlockSafe(args: any) {
       timestamp: new Date().toISOString()
     };
   }
-  
+
   const safePath_resolved = safePath(filePath);
-  
+
   // 파일 존재 확인
   let fileExists = true;
   try {
@@ -4519,36 +4556,36 @@ async function handleEditBlockSafe(args: any) {
     fileExists = false;
     throw new Error(`File does not exist: ${safePath_resolved}`);
   }
-  
+
   const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
   const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
-  
+
   // 위험 분석
   const riskAnalysis = analyzeEditRisk(old_text, new_text, originalContent, {
     word_boundary,
     case_sensitive
   });
-  
+
   // 백업 생성 (설정에 따라)
   if (backup && CREATE_BACKUP_FILES && !preview_only) {
     await fs.copyFile(safePath_resolved, backupPath!);
   }
-  
+
   try {
     // 매칭 패턴 준비
     let searchPattern = old_text;
     let flags = case_sensitive ? 'g' : 'gi';
-    
+
     if (word_boundary) {
       // 단어 경계 추가로 부분 매칭 방지
       searchPattern = `\\b${escapeRegExp(old_text)}\\b`;
     } else {
       searchPattern = escapeRegExp(old_text);
     }
-    
+
     const regex = new RegExp(searchPattern, flags);
     const occurrences = (originalContent.match(regex) || []).length;
-    
+
     if (occurrences === 0) {
       return {
         message: 'Text not found',
@@ -4563,7 +4600,7 @@ async function handleEditBlockSafe(args: any) {
         timestamp: new Date().toISOString()
       };
     }
-    
+
     if (expected_replacements !== occurrences) {
       return {
         message: 'Replacement count mismatch - operation cancelled for safety',
@@ -4579,12 +4616,12 @@ async function handleEditBlockSafe(args: any) {
         timestamp: new Date().toISOString()
       };
     }
-    
+
     // 미리보기 모드
     if (preview_only) {
       const modifiedContent = originalContent.replace(regex, new_text);
       const changePreview = generateChangePreview(originalContent, modifiedContent, old_text);
-      
+
       return {
         message: 'Preview completed - no changes made',
         path: safePath_resolved,
@@ -4599,25 +4636,25 @@ async function handleEditBlockSafe(args: any) {
         timestamp: new Date().toISOString()
       };
     }
-    
+
     // 안전 확인 완료 - 편집 실행
     const modifiedContent = originalContent.replace(regex, new_text);
-    
+
     // 디렉토리 생성
     const dir = path.dirname(safePath_resolved);
     await fs.mkdir(dir, { recursive: true });
-    
+
     // 수정된 내용 저장
     await fs.writeFile(safePath_resolved, modifiedContent, 'utf-8');
-    
+
     const stats = await fs.stat(safePath_resolved);
     const originalLines = originalContent.split('\n').length;
     const newLines = modifiedContent.split('\n').length;
-    
+
     // 변경된 위치 정보 제공
     const beforeLines = originalContent.substring(0, originalContent.indexOf(old_text)).split('\n');
     const changeStartLine = beforeLines.length;
-    
+
     return {
       message: 'Safe block editing completed successfully',
       path: safePath_resolved,
@@ -4639,7 +4676,7 @@ async function handleEditBlockSafe(args: any) {
       size_readable: formatSize(stats.size),
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     // 에러 시 백업에서 복구
     if (backup && CREATE_BACKUP_FILES && backupPath && !preview_only) {
@@ -4658,39 +4695,39 @@ function analyzeEditRisk(oldText: string, newText: string, content: string, opti
   const risks = [];
   const warnings = [];
   let riskLevel = 'low';
-  
+
   // 1. 짧은 텍스트 위험 (부분 매칭 가능성)
   if (oldText.length < 10 && !options.word_boundary) {
     risks.push('Short text pattern may cause unintended partial matches');
     riskLevel = 'medium';
   }
-  
+
   // 2. 다중 매칭 위험
   const occurrences = (content.match(new RegExp(escapeRegExp(oldText), options.case_sensitive ? 'g' : 'gi')) || []).length;
   if (occurrences > 3) {
     risks.push(`High number of matches (${occurrences}) increases risk of unintended changes`);
     riskLevel = 'high';
   }
-  
+
   // 3. 변수명/식별자 패턴 감지
   const identifierPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
   if (identifierPattern.test(oldText.trim()) && !options.word_boundary) {
     warnings.push('Identifier pattern detected - consider using word_boundary option');
     if (riskLevel === 'low') riskLevel = 'medium';
   }
-  
+
   // 4. 특수문자 포함 검사
   const hasSpecialChars = /[^\w\s]/.test(oldText);
   if (!hasSpecialChars && oldText.includes(' ')) {
     warnings.push('Whitespace-only separation may cause unexpected matches');
   }
-  
+
   // 5. 대소문자 혼합 패턴
   const hasMixedCase = /[a-z]/.test(oldText) && /[A-Z]/.test(oldText);
   if (hasMixedCase && !options.case_sensitive) {
     warnings.push('Mixed case pattern with case-insensitive matching may be risky');
   }
-  
+
   return {
     risk_level: riskLevel,
     risks: risks,
@@ -4702,22 +4739,22 @@ function analyzeEditRisk(oldText: string, newText: string, content: string, opti
 // 안전성 권장사항 생성
 function generateSafetyRecommendations(oldText: string, riskLevel: string, options: any) {
   const recommendations = [];
-  
+
   if (riskLevel === 'high') {
     recommendations.push('Consider adding more context to the old_text');
     recommendations.push('Use preview_only: true to verify changes first');
   }
-  
+
   if (oldText.length < 10) {
     recommendations.push('Add surrounding context to make the match more specific');
   }
-  
+
   if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(oldText.trim()) && !options.word_boundary) {
     recommendations.push('Use word_boundary: true for identifier replacements');
   }
-  
+
   recommendations.push('Always enable backup: true for important files');
-  
+
   return recommendations;
 }
 
@@ -4726,12 +4763,12 @@ function generateChangePreview(original: string, modified: string, pattern: stri
   const originalLines = original.split('\n');
   const modifiedLines = modified.split('\n');
   const preview = [];
-  
+
   // 변경된 라인들 찾기
   for (let i = 0; i < Math.max(originalLines.length, modifiedLines.length); i++) {
     const origLine = originalLines[i] || '';
     const modLine = modifiedLines[i] || '';
-    
+
     if (origLine !== modLine) {
       preview.push({
         line_number: i + 1,
@@ -4739,43 +4776,43 @@ function generateChangePreview(original: string, modified: string, pattern: stri
         modified: modLine,
         change_type: origLine.includes(pattern) ? 'replacement' : 'side_effect'
       });
-      
+
       if (preview.length >= 10) { // 최대 10개 라인만 표시
         preview.push({ line_number: -1, original: '...', modified: '...', change_type: 'truncated' });
         break;
       }
     }
   }
-  
+
   return preview;
 }
 
 // 스마트 안전 편집 핸들러
 async function handleSafeEdit(args: any) {
-  const { 
-    path: filePath, 
+  const {
+    path: filePath,
     old_text,
     new_text,
     safety_level = 'moderate',
     auto_add_context = true,
     require_confirmation = true
   } = args;
-  
+
   const safePath_resolved = safePath(filePath);
   const originalContent = await fs.readFile(safePath_resolved, 'utf-8');
-  
+
   // 자동 컨텍스트 추가
   let enhancedOldText = old_text;
   if (auto_add_context && old_text.length < 20) {
     enhancedOldText = addSmartContext(old_text, originalContent);
   }
-  
+
   // 안전 수준에 따른 설정
   const safetyConfig = getSafetyConfig(safety_level);
-  
+
   // 위험 분석
   const riskAnalysis = analyzeEditRisk(enhancedOldText, new_text, originalContent, safetyConfig);
-  
+
   // 위험 수준에 따른 처리
   if (riskAnalysis.risk_level === 'high' && require_confirmation) {
     return {
@@ -4796,7 +4833,7 @@ async function handleSafeEdit(args: any) {
       timestamp: new Date().toISOString()
     };
   }
-  
+
   // 안전한 편집 실행
   return await handleEditBlockSafe({
     path: filePath,
@@ -4813,7 +4850,7 @@ async function handleSafeEdit(args: any) {
 // 스마트 컨텍스트 추가
 function addSmartContext(pattern: string, content: string): string {
   const lines = content.split('\n');
-  
+
   // 패턴이 포함된 라인 찾기
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -4830,7 +4867,7 @@ function addSmartContext(pattern: string, content: string): string {
       }
     }
   }
-  
+
   return pattern; // 컨텍스트 추가 실패시 원본 반환
 }
 
