@@ -295,7 +295,7 @@ async function getOriginalFileSize(filePath: string): Promise<number> {
 const server = new Server(
   {
     name: 'fast-filesystem',
-    version: '3.2.4',
+    version: '3.4.0',
   },
   {
     capabilities: {
@@ -906,7 +906,7 @@ async function handleListAllowedDirectories() {
     },
     server_info: {
       name: 'fast-filesystem',
-      version: '3.2.4',
+      version: '3.4.0',
       features: ['emoji-guidelines', 'large-file-writing', 'smart-recommendations', 'configurable-backup'],
       emoji_policy: 'Emojis not recommended in all file types',
       backup_enabled: CREATE_BACKUP_FILES,
@@ -2250,7 +2250,7 @@ function getMimeType(filePath: string): string {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Fast Filesystem MCP Server v3.2.4 running on stdio (with advanced safe editing features)');
+  console.error('Fast Filesystem MCP Server v3.4.0 running on stdio (enhanced Windows support)');
 }
 
 // RegExp escape 함수
