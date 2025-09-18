@@ -14,6 +14,8 @@ node_modules/
 
 # Development files
 agents.md
+summary.md
+.serena
 test-search-data/
 
 # Local npm config
