@@ -519,32 +519,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['path']
         }
       },
-      {
-        name: 'fast_edit_file',
-        description: '파일의 특정 부분을 수정합니다 (Python edit_file과 동일)',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: { type: 'string', description: '편집할 파일 경로' },
-            edits: { 
-              type: 'array',
-              description: '수정 사항 리스트 [{"old_text": "찾을 텍스트", "new_text": "바꿀 텍스트"}]',
-              items: {
-                type: 'object',
-                properties: {
-                  old_text: { type: 'string', description: '찾을 텍스트' },
-                  new_text: { type: 'string', description: '바꿀 텍스트' }
-                },
-                required: ['old_text', 'new_text']
-              }
-            },
-            encoding: { type: 'string', description: '파일 인코딩', default: 'utf-8' },
-            create_backup: { type: 'boolean', description: '백업 파일 생성 여부', default: true },
-            dry_run: { type: 'boolean', description: '실제 수정 없이 미리보기만', default: false }
-          },
-          required: ['path', 'edits']
-        }
-      },
+
       {
         name: 'fast_edit_block',
         description: '정교한 블록 편집: 정확한 문자열 매칭으로 안전한 편집 (desktop-commander 방식)',
@@ -864,9 +839,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'fast_find_large_files':
         result = await handleFindLargeFiles(args);
         break;
-      case 'fast_edit_file':
-        result = await handleEditFile(args);
-        break;
+
       case 'fast_edit_block':
         result = await handleEditBlockSafe(args);
         break;
@@ -2286,131 +2259,7 @@ function escapeRegExp(string: string): string {
 }
 
 // 편집 관련 핸들러 함수들
-async function handleEditFile(args: any) {
-  const { 
-    path: filePath, 
-    edits = [],
-    old_text, 
-    new_text, 
-    backup = true,
-    create_if_missing = false
-  } = args;
-  
-  const safePath_resolved = safePath(filePath);
-  
-  // 파일 존재 확인
-  let fileExists = true;
-  try {
-    await fs.access(safePath_resolved);
-  } catch {
-    fileExists = false;
-    if (!create_if_missing) {
-      throw new Error(`File does not exist: ${safePath_resolved}`);
-    }
-  }
-  
-  let content = '';
-  if (fileExists) {
-    content = await fs.readFile(safePath_resolved, 'utf-8');
-  }
-  
-  const originalContent = content;
-  let modifiedContent = content;
-  const changes: any[] = [];
-  let totalChanges = 0;
-  const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
-  
-  // 백업 생성 (설정에 따라)
-  if (fileExists && backup && CREATE_BACKUP_FILES) {
-    await fs.copyFile(safePath_resolved, backupPath!);
-  }
-  
-  // 편집할 항목들 준비
-  let editList = [...edits];
-  
-  // 단일 편집 처리 (하위 호환성)
-  if (old_text && new_text !== undefined) {
-    editList.push({ old_text, new_text });
-  }
-  
-  try {
-    // 여러 편집 처리
-    for (const edit of editList) {
-      const { old_text: oldText, new_text: newText } = edit;
-      
-      if (!oldText || newText === undefined) {
-        changes.push({
-          old_text: oldText,
-          new_text: newText,
-          occurrences: 0,
-          status: 'skipped - invalid parameters'
-        });
-        continue;
-      }
-      
-      // 전체 문자열에서 텍스트 치환 (단순 문자열 치환만)
-      const occurrences = (modifiedContent.match(new RegExp(escapeRegExp(oldText), 'g')) || []).length;
-      
-      if (occurrences > 0) {
-        modifiedContent = modifiedContent.replace(new RegExp(escapeRegExp(oldText), 'g'), newText);
-        totalChanges += occurrences;
-        
-        changes.push({
-          old_text: oldText.length > 50 ? oldText.substring(0, 50) + '...' : oldText,
-          new_text: newText.length > 50 ? newText.substring(0, 50) + '...' : newText,
-          occurrences: occurrences,
-          status: 'success'
-        });
-      } else {
-        changes.push({
-          old_text: oldText.length > 50 ? oldText.substring(0, 50) + '...' : oldText,
-          new_text: newText.length > 50 ? newText.substring(0, 50) + '...' : newText,
-          occurrences: 0,
-          status: 'not found'
-        });
-      }
-    }
-    
-    // 디렉토리 생성
-    const dir = path.dirname(safePath_resolved);
-    await fs.mkdir(dir, { recursive: true });
-    
-    // 수정된 내용 저장
-    await fs.writeFile(safePath_resolved, modifiedContent, 'utf-8');
-    
-    const stats = await fs.stat(safePath_resolved);
-    const originalLines = originalContent.split('\n').length;
-    const newLines = modifiedContent.split('\n').length;
-    
-    return {
-      message: `File edited successfully`,
-      path: safePath_resolved,
-      changes_made: totalChanges,
-      edits_processed: editList.length,
-      changes_detail: changes,
-      original_lines: originalLines,
-      new_lines: newLines,
-      backup_created: backupPath,
-      backup_enabled: CREATE_BACKUP_FILES,
-      size: stats.size,
-      size_readable: formatSize(stats.size),
-      timestamp: new Date().toISOString()
-    };
-    
-  } catch (error) {
-    // 에러 시 백업에서 복구 (단, 파일 쓰기 관련 에러만)
-    if (fileExists && backup && CREATE_BACKUP_FILES && backupPath && error instanceof Error && 
-        (error.message.includes('EACCES') || error.message.includes('EPERM') || 
-         error.message.includes('ENOENT') || error.message.includes('write'))) {
-      try {
-        await fs.copyFile(backupPath, safePath_resolved);
-      } catch {
-        // 복구 실패는 무시
-      }
-    }
-    throw error;
-  }
-}
+
 
 // 정교한 블록 편집 핸들러 (desktop-commander 방식)
 async function handleEditBlock(args: any) {

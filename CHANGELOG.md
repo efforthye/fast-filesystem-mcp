@@ -1,4 +1,47 @@
 # Fast Filesystem MCP Changelog
+
+## v3.4.0 - Tool Optimization & Windows Support Enhancement
+
+### 🗑️ Deprecated Tool Removal
+- **Removed fast_edit_file**: Deprecated legacy editing tool has been completely removed
+  - This tool was causing conflicts and performance issues
+  - All editing functionality now handled by more robust alternatives:
+    - `fast_edit_block` - Precise block editing with safety checks
+    - `fast_safe_edit` - Smart editing with risk detection
+    - `fast_edit_multiple_blocks` - Multi-block editing
+    - `fast_edit_blocks` - Batch editing operations
+
+### 🪟 Windows Support Enhancement
+- **Improved Windows compatibility**: Enhanced cross-platform file operations
+- **Better path handling**: Improved Windows path normalization and handling
+- **Enhanced system integration**: Better integration with Windows filesystem features
+
+### 👥 Contributors
+- **New contributor**: @sting8k - Windows support improvements and tool optimization
+
+### 🔧 Technical Improvements
+- **Cleaner codebase**: Removed redundant and problematic code
+- **Better maintainability**: Simplified tool hierarchy reduces maintenance overhead
+- **Improved performance**: Elimination of conflicting tools improves overall performance
+
+### 🛠️ Migration Guide
+If you were using `fast_edit_file`, please migrate to:
+- For simple edits: Use `fast_edit_block` 
+- For multiple edits: Use `fast_edit_blocks`
+- For safer edits: Use `fast_safe_edit`
+
+### 📋 Full Feature Set
+All other functionality remains unchanged:
+- File reading/writing with auto-chunking
+- Directory operations and tree navigation
+- Advanced search capabilities (ripgrep integration)
+- Complex file operations (copy, move, delete, batch)
+- Archive management (compress/extract)
+- Directory synchronization
+- Large file streaming support
+
+---
+
 # Changelog
 
 ## v3.1.0 - Advanced File Operations & Complex File Tasks
