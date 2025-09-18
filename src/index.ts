@@ -519,21 +519,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['path']
         }
       },
-
       {
         name: 'fast_edit_block',
-        description: '정교한 블록 편집: 정확한 문자열 매칭으로 안전한 편집 (desktop-commander 방식)',
+        description: 'Precise block editing: safely replace exact matches (desktop-commander style)',
         inputSchema: {
           type: 'object',
           properties: {
-            path: { type: 'string', description: '편집할 파일 경로' },
-            old_text: { type: 'string', description: '정확히 매칭할 기존 텍스트 (최소 컨텍스트 포함)' },
-            new_text: { type: 'string', description: '새로운 텍스트' },
-            expected_replacements: { type: 'number', description: '예상 교체 횟수 (안전성을 위해)', default: 1 },
-            backup: { type: 'boolean', description: '백업 생성', default: true },
-            word_boundary: { type: 'boolean', description: '단어 경계 검사 (부분 매칭 방지)', default: false },
-            preview_only: { type: 'boolean', description: '미리보기만 (실제 편집 안함)', default: false },
-            case_sensitive: { type: 'boolean', description: '대소문자 구분', default: true }
+            path: { type: 'string', description: 'Path of the file to edit' },
+            old_text: { type: 'string', description: 'Exact existing text to match (include minimal context)' },
+            new_text: { type: 'string', description: 'Replacement text' },
+            expected_replacements: { type: 'number', description: 'Expected number of replacements (safety guard)', default: 1 },
+            backup: { type: 'boolean', description: 'Create a backup', default: true },
+            word_boundary: { type: 'boolean', description: 'Enforce word boundaries (prevents partial matches)', default: false },
+            preview_only: { type: 'boolean', description: 'Preview only (don’t modify the file)', default: false },
+            case_sensitive: { type: 'boolean', description: 'Match case sensitively', default: true }
           },
           required: ['path', 'old_text', 'new_text']
         }
