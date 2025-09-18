@@ -295,7 +295,7 @@ async function getOriginalFileSize(filePath: string): Promise<number> {
 const server = new Server(
   {
     name: 'fast-filesystem',
-    version: '3.2.4',
+    version: '3.4.0',
   },
   {
     capabilities: {
@@ -519,46 +519,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['path']
         }
       },
-      {
-        name: 'fast_edit_file',
-        description: 'Edits a specific part of a file (similar to Python edit_file)',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            path: { type: 'string', description: 'Path of the file to edit' },
-            edits: {
-              type: 'array',
-              description: 'List of edits [{"old_text": "text to find", "new_text": "text to replace with"}]',
-              items: {
-                type: 'object',
-                properties: {
-                  old_text: { type: 'string', description: 'Text to find' },
-                  new_text: { type: 'string', description: 'Text to replace with' }
-                },
-                required: ['old_text', 'new_text']
-              }
-            },
-            encoding: { type: 'string', description: 'File encoding', default: 'utf-8' },
-            create_backup: { type: 'boolean', description: 'Create a backup file', default: true },
-            dry_run: { type: 'boolean', description: 'Preview changes without actually modifying the file', default: false }
-          },
-          required: ['path', 'edits']
-        }
-      },
+
       {
         name: 'fast_edit_block',
-        description: 'Precise block editing: Safe editing with exact string matching (desktop-commander style)',
+        description: '정교한 블록 편집: 정확한 문자열 매칭으로 안전한 편집 (desktop-commander 방식)',
         inputSchema: {
           type: 'object',
           properties: {
-            path: { type: 'string', description: 'Path of the file to edit' },
-            old_text: { type: 'string', description: 'The exact existing text to match (including minimal context)' },
-            new_text: { type: 'string', description: 'The new text' },
-            expected_replacements: { type: 'number', description: 'The expected number of replacements (for safety)', default: 1 },
-            backup: { type: 'boolean', description: 'Create a backup', default: true },
-            word_boundary: { type: 'boolean', description: 'Check word boundaries (prevents partial matches)', default: false },
-            preview_only: { type: 'boolean', description: 'Preview only (does not actually edit)', default: false },
-            case_sensitive: { type: 'boolean', description: 'Case-sensitive matching', default: true }
+            path: { type: 'string', description: '편집할 파일 경로' },
+            old_text: { type: 'string', description: '정확히 매칭할 기존 텍스트 (최소 컨텍스트 포함)' },
+            new_text: { type: 'string', description: '새로운 텍스트' },
+            expected_replacements: { type: 'number', description: '예상 교체 횟수 (안전성을 위해)', default: 1 },
+            backup: { type: 'boolean', description: '백업 생성', default: true },
+            word_boundary: { type: 'boolean', description: '단어 경계 검사 (부분 매칭 방지)', default: false },
+            preview_only: { type: 'boolean', description: '미리보기만 (실제 편집 안함)', default: false },
+            case_sensitive: { type: 'boolean', description: '대소문자 구분', default: true }
           },
           required: ['path', 'old_text', 'new_text']
         }
@@ -864,9 +839,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'fast_find_large_files':
         result = await handleFindLargeFiles(args);
         break;
-      case 'fast_edit_file':
-        result = await handleEditFile(args);
-        break;
+
       case 'fast_edit_block':
         result = await handleEditBlockSafe(args);
         break;
@@ -933,7 +906,7 @@ async function handleListAllowedDirectories() {
     },
     server_info: {
       name: 'fast-filesystem',
-      version: '3.2.4',
+      version: '3.4.0',
       features: ['emoji-guidelines', 'large-file-writing', 'smart-recommendations', 'configurable-backup'],
       emoji_policy: 'Emojis not recommended in all file types',
       backup_enabled: CREATE_BACKUP_FILES,
@@ -2406,139 +2379,12 @@ function getMimeType(filePath: string): string {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Fast Filesystem MCP Server v3.2.4 running on stdio (with advanced safe editing features)');
+  console.error('Fast Filesystem MCP Server v3.4.0 running on stdio (enhanced Windows support)');
 }
 
 // RegExp escape 함수
 function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-// 편집 관련 핸들러 함수들
-async function handleEditFile(args: any) {
-  const {
-    path: filePath,
-    edits = [],
-    old_text,
-    new_text,
-    backup = true,
-    create_if_missing = false
-  } = args;
-
-  const safePath_resolved = safePath(filePath);
-
-  // 파일 존재 확인
-  let fileExists = true;
-  try {
-    await fs.access(safePath_resolved);
-  } catch {
-    fileExists = false;
-    if (!create_if_missing) {
-      throw new Error(`File does not exist: ${safePath_resolved}`);
-    }
-  }
-
-  let content = '';
-  if (fileExists) {
-    content = await fs.readFile(safePath_resolved, 'utf-8');
-  }
-
-  const originalContent = content;
-  let modifiedContent = content;
-  const changes: any[] = [];
-  let totalChanges = 0;
-  const backupPath = backup && CREATE_BACKUP_FILES ? `${safePath_resolved}.backup.${Date.now()}` : null;
-
-  // 백업 생성 (설정에 따라)
-  if (fileExists && backup && CREATE_BACKUP_FILES) {
-    await fs.copyFile(safePath_resolved, backupPath!);
-  }
-
-  // 편집할 항목들 준비
-  let editList = [...edits];
-
-  // 단일 편집 처리 (하위 호환성)
-  if (old_text && new_text !== undefined) {
-    editList.push({ old_text, new_text });
-  }
-
-  try {
-    // 여러 편집 처리
-    for (const edit of editList) {
-      const { old_text: oldText, new_text: newText } = edit;
-
-      if (!oldText || newText === undefined) {
-        changes.push({
-          old_text: oldText,
-          new_text: newText,
-          occurrences: 0,
-          status: 'skipped - invalid parameters'
-        });
-        continue;
-      }
-
-      // 전체 문자열에서 텍스트 치환 (단순 문자열 치환만)
-      const occurrences = (modifiedContent.match(new RegExp(escapeRegExp(oldText), 'g')) || []).length;
-
-      if (occurrences > 0) {
-        modifiedContent = modifiedContent.replace(new RegExp(escapeRegExp(oldText), 'g'), newText);
-        totalChanges += occurrences;
-
-        changes.push({
-          old_text: oldText.length > 50 ? oldText.substring(0, 50) + '...' : oldText,
-          new_text: newText.length > 50 ? newText.substring(0, 50) + '...' : newText,
-          occurrences: occurrences,
-          status: 'success'
-        });
-      } else {
-        changes.push({
-          old_text: oldText.length > 50 ? oldText.substring(0, 50) + '...' : oldText,
-          new_text: newText.length > 50 ? newText.substring(0, 50) + '...' : newText,
-          occurrences: 0,
-          status: 'not found'
-        });
-      }
-    }
-
-    // 디렉토리 생성
-    const dir = path.dirname(safePath_resolved);
-    await fs.mkdir(dir, { recursive: true });
-
-    // 수정된 내용 저장
-    await fs.writeFile(safePath_resolved, modifiedContent, 'utf-8');
-
-    const stats = await fs.stat(safePath_resolved);
-    const originalLines = originalContent.split('\n').length;
-    const newLines = modifiedContent.split('\n').length;
-
-    return {
-      message: `File edited successfully`,
-      path: safePath_resolved,
-      changes_made: totalChanges,
-      edits_processed: editList.length,
-      changes_detail: changes,
-      original_lines: originalLines,
-      new_lines: newLines,
-      backup_created: backupPath,
-      backup_enabled: CREATE_BACKUP_FILES,
-      size: stats.size,
-      size_readable: formatSize(stats.size),
-      timestamp: new Date().toISOString()
-    };
-
-  } catch (error) {
-    // 에러 시 백업에서 복구 (단, 파일 쓰기 관련 에러만)
-    if (fileExists && backup && CREATE_BACKUP_FILES && backupPath && error instanceof Error &&
-      (error.message.includes('EACCES') || error.message.includes('EPERM') ||
-        error.message.includes('ENOENT') || error.message.includes('write'))) {
-      try {
-        await fs.copyFile(backupPath, safePath_resolved);
-      } catch {
-        // 복구 실패는 무시
-      }
-    }
-    throw error;
-  }
 }
 
 // 정교한 블록 편집 핸들러 (desktop-commander 방식)
