@@ -1,11 +1,22 @@
-.vercel
-node_modules
-dist
-dist/*
+# Build outputs
+dist/
+node_modules/
 
-# Security - Never commit these!
+# Deployment
+.vercel
+
+# Environment and secrets
 .env
 .env.local
 .npmrc.local
 *.pem
 *.key
+
+# Development files
+agents.md
+summary.md
+.serena
+test-search-data/
+
+# Local npm config
+.npmrc
