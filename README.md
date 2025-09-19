@@ -247,4 +247,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ## Repository
+[![MCP Badge](https://lobehub.com/badge/mcp/efforthye-fast-filesystem-mcp)](https://lobehub.com/mcp/efforthye-fast-filesystem-mcp)<br/>
 https://github.com/efforthye/fast-filesystem-mcp
