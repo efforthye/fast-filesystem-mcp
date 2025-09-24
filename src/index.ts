@@ -1770,20 +1770,27 @@ async function handleSearchFiles(args: any) {
             // The per-file loop will be skipped for content_search when a precomputed ripgrepResultsMap is present.
             const precomputed = (global as any).__precomputedRipgrepResults as Map<string, any[]> | undefined;
             if (precomputed) {
+              // Try both the original path and normalized path for matching
+              const normalizedPath = path.resolve(fullPath);
+              let ripResults: any[] = [];
+              
               if (precomputed.has(fullPath)) {
-                const ripResults = precomputed.get(fullPath) || [];
-                if (ripResults.length > 0) {
-                  matched = true;
-                  matchType = 'content';
-                  matchedLines = ripResults.map((r: any) => ({
-                    line_number: r.line,
-                    line_content: r.match,
-                    match_start: r.column || 0,
-                    match_end: (r.column || 0) + r.match.length,
-                    context_before: r.context_before || [],
-                    context_after: r.context_after || []
-                  }));
-                }
+                ripResults = precomputed.get(fullPath) || [];
+              } else if (precomputed.has(normalizedPath)) {
+                ripResults = precomputed.get(normalizedPath) || [];
+              }
+              
+              if (ripResults.length > 0) {
+                matched = true;
+                matchType = 'content';
+                matchedLines = ripResults.map((r: any) => ({
+                  line_number: r.line,
+                  line_content: r.match,
+                  match_start: r.column || 0,
+                  match_end: (r.column || 0) + r.match.length,
+                  context_before: r.context_before || [],
+                  context_after: r.context_after || []
+                }));
               }
             } else {
               try {
@@ -1889,12 +1896,20 @@ async function handleSearchFiles(args: any) {
       });
 
 
-      // Map results by absolute file path
+      // Map results by normalized absolute file path to ensure consistency
       const resultMap = new Map<string, any[]>();
       for (const r of ripResults) {
-        if (!resultMap.has(r.file)) resultMap.set(r.file, []);
-        resultMap.get(r.file)!.push(r);
+        // Normalize the file path to ensure consistent matching
+        const normalizedPath = path.resolve(r.file);
+        if (!resultMap.has(normalizedPath)) resultMap.set(normalizedPath, []);
+        resultMap.get(normalizedPath)!.push(r);
       }
+      
+      console.log(`Ripgrep found ${ripResults.length} matches in ${resultMap.size} files`);
+      console.log('Files with matches:', Array.from(resultMap.keys()).map(f => path.basename(f)));
+      
+      // Debug: Log all results for troubleshooting
+      console.log('All ripgrep results:', ripResults.map(r => ({ file: r.file, line: r.line, match: r.match?.substring(0, 50) })));
 
 
       // Expose map to per-file loop via global variable for this run
@@ -1908,6 +1923,7 @@ async function handleSearchFiles(args: any) {
 
     } catch (rgError) {
       console.warn('Ripgrep bulk search failed, falling back to per-file checks:', rgError);
+      console.log('Ripgrep error details:', rgError);
       await searchDirectory(safePath_resolved);
     }
   } else {
@@ -2197,16 +2213,18 @@ async function searchCodeWithRipgrep(options: {
   ];
 
   if (ignoreCase) args.push('-i');
-  if (maxResults) args.push('-m', maxResults.toString());
+  // Remove -m flag to avoid limiting individual matches - we'll limit files instead
+  // if (maxResults) args.push('-m', maxResults.toString());
   if (includeHidden) args.push('--hidden');
   if (contextLines > 0) args.push('-C', contextLines.toString());
   if (filePattern) args.push('-g', filePattern);
 
   // Ensure pattern is not empty to avoid rg errors
   if (!pattern || pattern.trim().length === 0) {
-    // Return empty results for empty pattern instead of throwing error
+    console.log('Empty pattern provided to ripgrep, returning empty results');
     return Promise.resolve([]);
   }
+  console.log(`Ripgrep search: pattern="${pattern}", rootPath="${rootPath}", maxResults=${maxResults}`);
 
   args.push('-e', pattern, rootPath);
 
@@ -2226,8 +2244,28 @@ async function searchCodeWithRipgrep(options: {
       try { rg.removeAllListeners(); } catch { }
       try { if (!rg.killed) rg.kill(); } catch { }
 
-      // Limit results to maxResults after processing all files
-      const limitedResults = results.slice(0, maxResults);
+      // Group results by file and limit the number of files instead of individual matches
+      const fileGroups = new Map<string, SearchResult[]>();
+      for (const result of results) {
+        const normalizedPath = path.resolve(result.file);
+        if (!fileGroups.has(normalizedPath)) {
+          fileGroups.set(normalizedPath, []);
+        }
+        fileGroups.get(normalizedPath)!.push(result);
+      }
+      
+      // Limit by number of unique files, not individual matches
+      const limitedFiles = Array.from(fileGroups.entries()).slice(0, Math.min(maxResults, 200));
+      const limitedResults: SearchResult[] = [];
+      
+      for (const [filePath, fileResults] of limitedFiles) {
+        // Update file paths to use normalized paths
+        for (const result of fileResults) {
+          result.file = filePath;
+        }
+        limitedResults.push(...fileResults);
+      }
+      
       resolve(limitedResults);
     }
 
@@ -2290,7 +2328,7 @@ async function searchCodeWithRipgrep(options: {
       if (settled) return;
       if (timeoutId) clearTimeout(timeoutId);
 
-
+      console.log(`Ripgrep process closed with code ${code}, found ${results.length} results`);
 
       if (remainder) {
         const leftover = remainder.trim().split('\n');

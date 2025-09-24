@@ -21,7 +21,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
-import { handleReadFileWithAutoChunking, handleListDirectoryWithAutoChunking, handleSearchFilesWithAutoChunking } from './enhanced-handlers.js';
+import { handleReadFileWithAutoChunking, handleListDirectoryWithAutoChunking } from './enhanced-handlers.js';
 import { isPathAllowed as coreIsPathAllowed, safePath as coreSafePath, getAllowedDirectories, addAllowedDirectories } from './utils.js';
 // import { searchCode, SearchResult } from './search.js';
 const execAsync = promisify(exec);
@@ -231,7 +231,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         tools: [
             {
                 name: 'fast_list_allowed_directories',
-                description: '허용된 디렉토리 목록을 조회합니다',
+                description: 'Lists the allowed directories',
                 inputSchema: {
                     type: 'object',
                     properties: {},
@@ -240,45 +240,45 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'fast_read_file',
-                description: '파일을 읽습니다 (자동 청킹 지원)',
+                description: 'Reads a file (with auto-chunking support)',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '읽을 파일 경로' },
-                        start_offset: { type: 'number', description: '시작 바이트 위치' },
-                        max_size: { type: 'number', description: '읽을 최대 크기' },
-                        line_start: { type: 'number', description: '시작 라인 번호' },
-                        line_count: { type: 'number', description: '읽을 라인 수' },
-                        encoding: { type: 'string', description: '텍스트 인코딩', default: 'utf-8' },
-                        continuation_token: { type: 'string', description: '이전 호출의 연속 토큰' },
-                        auto_chunk: { type: 'boolean', description: '자동 청킹 활성화', default: true }
+                        path: { type: 'string', description: 'File path to read' },
+                        start_offset: { type: 'number', description: 'Starting byte offset' },
+                        max_size: { type: 'number', description: 'Maximum size to read' },
+                        line_start: { type: 'number', description: 'Starting line number' },
+                        line_count: { type: 'number', description: 'Number of lines to read' },
+                        encoding: { type: 'string', description: 'Text encoding', default: 'utf-8' },
+                        continuation_token: { type: 'string', description: 'Continuation token from a previous call' },
+                        auto_chunk: { type: 'boolean', description: 'Enable auto-chunking', default: true }
                     },
                     required: ['path']
                 }
             },
             {
                 name: 'fast_read_multiple_files',
-                description: '여러 파일의 내용을 동시에 읽습니다 (순차적 읽기 지원)',
+                description: 'Reads the content of multiple files simultaneously (supports sequential reading)',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         paths: {
                             type: 'array',
                             items: { type: 'string' },
-                            description: '읽을 파일 경로들'
+                            description: 'File paths to read'
                         },
                         continuation_tokens: {
                             type: 'object',
-                            description: '파일별 continuation token (이전 호출에서 반환된 값)'
+                            description: 'Per-file continuation token (value returned from a previous call)'
                         },
                         auto_continue: {
                             type: 'boolean',
-                            description: '자동으로 전체 파일 읽기 (기본값: true)',
+                            description: 'Automatically read the entire file (default: true)',
                             default: true
                         },
                         chunk_size: {
                             type: 'number',
-                            description: '청크 크기 (바이트, 기본값: 1MB)',
+                            description: 'Chunk size (bytes, default: 1MB)',
                             default: 1048576
                         }
                     },
@@ -287,214 +287,214 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'fast_write_file',
-                description: '파일을 쓰거나 수정합니다 (이모지 가이드라인 제공)',
+                description: 'Writes or modifies a file (provides emoji guidelines)',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '파일 경로' },
-                        content: { type: 'string', description: '파일 내용' },
-                        encoding: { type: 'string', description: '텍스트 인코딩', default: 'utf-8' },
-                        create_dirs: { type: 'boolean', description: '디렉토리 자동 생성', default: true },
-                        append: { type: 'boolean', description: '추가 모드', default: false },
-                        force_remove_emojis: { type: 'boolean', description: '이모지 강제 제거 (기본값: false)', default: false }
+                        path: { type: 'string', description: 'File path' },
+                        content: { type: 'string', description: 'File content' },
+                        encoding: { type: 'string', description: 'Text encoding', default: 'utf-8' },
+                        create_dirs: { type: 'boolean', description: 'Automatically create directories', default: true },
+                        append: { type: 'boolean', description: 'Append mode', default: false },
+                        force_remove_emojis: { type: 'boolean', description: 'Force remove emojis (default: false)', default: false }
                     },
                     required: ['path', 'content']
                 }
             },
             {
                 name: 'fast_large_write_file',
-                description: '대용량 파일을 안정적으로 작성합니다 (스트리밍, 재시도, 백업, 검증 기능)',
+                description: 'Reliably writes large files (with streaming, retry, backup, and verification features)',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '파일 경로' },
-                        content: { type: 'string', description: '파일 내용' },
-                        encoding: { type: 'string', description: '텍스트 인코딩', default: 'utf-8' },
-                        create_dirs: { type: 'boolean', description: '디렉토리 자동 생성', default: true },
-                        append: { type: 'boolean', description: '추가 모드', default: false },
-                        chunk_size: { type: 'number', description: '청크 크기 (바이트)', default: 65536 },
-                        backup: { type: 'boolean', description: '기존 파일 백업 생성', default: true },
-                        retry_attempts: { type: 'number', description: '재시도 횟수', default: 3 },
-                        verify_write: { type: 'boolean', description: '작성 후 검증', default: true },
-                        force_remove_emojis: { type: 'boolean', description: '이모지 강제 제거 (기본값: false)', default: false }
+                        path: { type: 'string', description: 'File path' },
+                        content: { type: 'string', description: 'File content' },
+                        encoding: { type: 'string', description: 'Text encoding', default: 'utf-8' },
+                        create_dirs: { type: 'boolean', description: 'Automatically create directories', default: true },
+                        append: { type: 'boolean', description: 'Append mode', default: false },
+                        chunk_size: { type: 'number', description: 'Chunk size (bytes)', default: 65536 },
+                        backup: { type: 'boolean', description: 'Create a backup of the existing file', default: true },
+                        retry_attempts: { type: 'number', description: 'Number of retry attempts', default: 3 },
+                        verify_write: { type: 'boolean', description: 'Verify after writing', default: true },
+                        force_remove_emojis: { type: 'boolean', description: 'Force remove emojis (default: false)', default: false }
                     },
                     required: ['path', 'content']
                 }
             },
             {
                 name: 'fast_list_directory',
-                description: '디렉토리 목록을 조회합니다 (자동 청킹 페이징 지원)',
+                description: 'Lists the contents of a directory (with auto-chunking and pagination support)',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '디렉토리 경로' },
-                        page: { type: 'number', description: '페이지 번호', default: 1 },
-                        page_size: { type: 'number', description: '페이지당 항목 수' },
-                        pattern: { type: 'string', description: '파일명 필터 패턴' },
-                        show_hidden: { type: 'boolean', description: '숨김 파일 표시', default: false },
-                        sort_by: { type: 'string', description: '정렬 기준', enum: ['name', 'size', 'modified', 'type'], default: 'name' },
-                        reverse: { type: 'boolean', description: '역순 정렬', default: false },
-                        continuation_token: { type: 'string', description: '이전 호출의 연속 토큰' },
-                        auto_chunk: { type: 'boolean', description: '자동 청킹 활성화', default: true }
+                        path: { type: 'string', description: 'Directory path' },
+                        page: { type: 'number', description: 'Page number', default: 1 },
+                        page_size: { type: 'number', description: 'Number of items per page' },
+                        pattern: { type: 'string', description: 'Filename filter pattern' },
+                        show_hidden: { type: 'boolean', description: 'Show hidden files', default: false },
+                        sort_by: { type: 'string', description: 'Sort by', enum: ['name', 'size', 'modified', 'type'], default: 'name' },
+                        reverse: { type: 'boolean', description: 'Reverse sort order', default: false },
+                        continuation_token: { type: 'string', description: 'Continuation token from a previous call' },
+                        auto_chunk: { type: 'boolean', description: 'Enable auto-chunking', default: true }
                     },
                     required: ['path']
                 }
             },
             {
                 name: 'fast_get_file_info',
-                description: '파일/디렉토리 상세 정보를 조회합니다',
+                description: 'Gets detailed information about a file or directory',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '조회할 경로' }
+                        path: { type: 'string', description: 'Path to get info for' }
                     },
                     required: ['path']
                 }
             },
             {
                 name: 'fast_create_directory',
-                description: '디렉토리를 생성합니다',
+                description: 'Creates a directory',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '생성할 디렉토리 경로' },
-                        recursive: { type: 'boolean', description: '재귀적 생성', default: true }
+                        path: { type: 'string', description: 'Path of the directory to create' },
+                        recursive: { type: 'boolean', description: 'Create parent directories if they do not exist', default: true }
                     },
                     required: ['path']
                 }
             },
             {
                 name: 'fast_search_files',
-                description: '파일을 검색합니다 (이름/내용) - 자동 청킹, 정규표현식, 컨텍스트, 라인번호 지원',
+                description: 'Searches for files (by name/content) - supports auto-chunking, regex, context, and line numbers',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '검색할 디렉토리' },
-                        pattern: { type: 'string', description: '검색 패턴 (정규표현식 지원)' },
-                        content_search: { type: 'boolean', description: '파일 내용 검색', default: false },
-                        case_sensitive: { type: 'boolean', description: '대소문자 구분', default: false },
-                        max_results: { type: 'number', description: '최대 결과 수', default: 100 },
-                        context_lines: { type: 'number', description: '매치된 라인 주변 컨텍스트 라인 수', default: 0 },
-                        file_pattern: { type: 'string', description: '파일명 필터 패턴 (*.js, *.txt 등)', default: '' },
-                        include_binary: { type: 'boolean', description: '바이너리 파일 포함 여부', default: false },
-                        continuation_token: { type: 'string', description: '이전 호출의 연속 토큰' },
-                        auto_chunk: { type: 'boolean', description: '자동 청킹 활성화', default: true }
+                        path: { type: 'string', description: 'Directory to search in' },
+                        pattern: { type: 'string', description: 'Search pattern (regex supported)' },
+                        content_search: { type: 'boolean', description: 'Search file content', default: false },
+                        case_sensitive: { type: 'boolean', description: 'Case-sensitive search', default: false },
+                        max_results: { type: 'number', description: 'Maximum number of results', default: 100 },
+                        context_lines: { type: 'number', description: 'Number of context lines around a match', default: 0 },
+                        file_pattern: { type: 'string', description: 'Filename filter pattern (e.g., *.js, *.txt)', default: '' },
+                        include_binary: { type: 'boolean', description: 'Include binary files in search', default: false },
+                        continuation_token: { type: 'string', description: 'Continuation token from a previous call' },
+                        auto_chunk: { type: 'boolean', description: 'Enable auto-chunking', default: true }
                     },
                     required: ['path', 'pattern']
                 }
             },
             {
                 name: 'fast_search_code',
-                description: '코드 검색 (ripgrep 스타일) - 자동 청킹, 라인번호와 컨텍스트 제공',
+                description: 'Searches for code (ripgrep-style) - provides auto-chunking, line numbers, and context',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '검색할 디렉토리' },
-                        pattern: { type: 'string', description: '검색 패턴 (정규표현식 지원)' },
-                        file_pattern: { type: 'string', description: '파일 확장자 필터 (*.js, *.ts 등)', default: '' },
-                        context_lines: { type: 'number', description: '매치 주변 컨텍스트 라인 수', default: 2 },
-                        max_results: { type: 'number', description: '최대 결과 수', default: 50 },
-                        case_sensitive: { type: 'boolean', description: '대소문자 구분', default: false },
-                        include_hidden: { type: 'boolean', description: '숨김 파일 포함', default: false },
-                        max_file_size: { type: 'number', description: '검색할 최대 파일 크기 (MB)', default: 10 },
-                        continuation_token: { type: 'string', description: '이전 호출의 연속 토큰' },
-                        auto_chunk: { type: 'boolean', description: '자동 청킹 활성화', default: true }
+                        path: { type: 'string', description: 'Directory to search in' },
+                        pattern: { type: 'string', description: 'Search pattern (regex supported)' },
+                        file_pattern: { type: 'string', description: 'File extension filter (e.g., *.js, *.ts)', default: '' },
+                        context_lines: { type: 'number', description: 'Number of context lines around a match', default: 2 },
+                        max_results: { type: 'number', description: 'Maximum number of results', default: 50 },
+                        case_sensitive: { type: 'boolean', description: 'Case-sensitive search', default: false },
+                        include_hidden: { type: 'boolean', description: 'Include hidden files', default: false },
+                        max_file_size: { type: 'number', description: 'Maximum file size to search (in MB)', default: 10 },
+                        continuation_token: { type: 'string', description: 'Continuation token from a previous call' },
+                        auto_chunk: { type: 'boolean', description: 'Enable auto-chunking', default: true }
                     },
                     required: ['path', 'pattern']
                 }
             },
             {
                 name: 'fast_get_directory_tree',
-                description: '디렉토리 트리 구조를 가져옵니다',
+                description: 'Gets the directory tree structure',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '루트 디렉토리 경로' },
-                        max_depth: { type: 'number', description: '최대 깊이', default: 3 },
-                        show_hidden: { type: 'boolean', description: '숨김 파일 표시', default: false },
-                        include_files: { type: 'boolean', description: '파일 포함', default: true }
+                        path: { type: 'string', description: 'Root directory path' },
+                        max_depth: { type: 'number', description: 'Maximum depth', default: 3 },
+                        show_hidden: { type: 'boolean', description: 'Show hidden files', default: false },
+                        include_files: { type: 'boolean', description: 'Include files in the tree', default: true }
                     },
                     required: ['path']
                 }
             },
             {
                 name: 'fast_get_disk_usage',
-                description: '디스크 사용량을 조회합니다',
+                description: 'Gets disk usage information',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '조회할 경로', default: '/' }
+                        path: { type: 'string', description: 'Path to check', default: '/' }
                     }
                 }
             },
             {
                 name: 'fast_find_large_files',
-                description: '큰 파일들을 찾습니다',
+                description: 'Finds large files',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '검색할 디렉토리' },
-                        min_size: { type: 'string', description: '최소 크기 (예: 100MB, 1GB)', default: '100MB' },
-                        max_results: { type: 'number', description: '최대 결과 수', default: 50 }
+                        path: { type: 'string', description: 'Directory to search in' },
+                        min_size: { type: 'string', description: 'Minimum size (e.g., 100MB, 1GB)', default: '100MB' },
+                        max_results: { type: 'number', description: 'Maximum number of results', default: 50 }
                     },
                     required: ['path']
                 }
             },
             {
                 name: 'fast_edit_block',
-                description: '정교한 블록 편집: 정확한 문자열 매칭으로 안전한 편집 (desktop-commander 방식)',
+                description: 'Precise block editing: safely replace exact matches (desktop-commander style)',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '편집할 파일 경로' },
-                        old_text: { type: 'string', description: '정확히 매칭할 기존 텍스트 (최소 컨텍스트 포함)' },
-                        new_text: { type: 'string', description: '새로운 텍스트' },
-                        expected_replacements: { type: 'number', description: '예상 교체 횟수 (안전성을 위해)', default: 1 },
-                        backup: { type: 'boolean', description: '백업 생성', default: true },
-                        word_boundary: { type: 'boolean', description: '단어 경계 검사 (부분 매칭 방지)', default: false },
-                        preview_only: { type: 'boolean', description: '미리보기만 (실제 편집 안함)', default: false },
-                        case_sensitive: { type: 'boolean', description: '대소문자 구분', default: true }
+                        path: { type: 'string', description: 'Path of the file to edit' },
+                        old_text: { type: 'string', description: 'Exact existing text to match (include minimal context)' },
+                        new_text: { type: 'string', description: 'Replacement text' },
+                        expected_replacements: { type: 'number', description: 'Expected number of replacements (safety guard)', default: 1 },
+                        backup: { type: 'boolean', description: 'Create a backup', default: true },
+                        word_boundary: { type: 'boolean', description: 'Enforce word boundaries (prevents partial matches)', default: false },
+                        preview_only: { type: 'boolean', description: 'Preview only (don’t modify the file)', default: false },
+                        case_sensitive: { type: 'boolean', description: 'Match case sensitively', default: true }
                     },
                     required: ['path', 'old_text', 'new_text']
                 }
             },
             {
                 name: 'fast_safe_edit',
-                description: '안전한 스마트 편집: 위험 감지 및 대화형 확인',
+                description: 'Safe smart editing: Detects risks and provides interactive confirmation',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '편집할 파일 경로' },
-                        old_text: { type: 'string', description: '교체할 텍스트' },
-                        new_text: { type: 'string', description: '새로운 텍스트' },
+                        path: { type: 'string', description: 'Path of the file to edit' },
+                        old_text: { type: 'string', description: 'Text to be replaced' },
+                        new_text: { type: 'string', description: 'The new text' },
                         safety_level: {
                             type: 'string',
                             enum: ['strict', 'moderate', 'flexible'],
                             default: 'moderate',
-                            description: '안전 수준 (strict: 매우 안전, moderate: 균형, flexible: 유연)'
+                            description: 'Safety level (strict: very safe, moderate: balanced, flexible: lenient)'
                         },
-                        auto_add_context: { type: 'boolean', description: '자동 컨텍스트 추가', default: true },
-                        require_confirmation: { type: 'boolean', description: '위험시 확인 요구', default: true }
+                        auto_add_context: { type: 'boolean', description: 'Automatically add context', default: true },
+                        require_confirmation: { type: 'boolean', description: 'Require confirmation on high risk', default: true }
                     },
                     required: ['path', 'old_text', 'new_text']
                 }
             },
             {
                 name: 'fast_edit_multiple_blocks',
-                description: '파일의 여러 부분을 한 번에 편집합니다',
+                description: 'Edits multiple parts of a file at once',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '편집할 파일 경로' },
+                        path: { type: 'string', description: 'Path of the file to edit' },
                         edits: {
                             type: 'array',
-                            description: '편집 작업 목록',
+                            description: 'List of edit operations',
                             items: {
                                 type: 'object',
                                 properties: {
-                                    old_text: { type: 'string', description: '찾을 기존 텍스트' },
-                                    new_text: { type: 'string', description: '새로운 텍스트' },
-                                    line_number: { type: 'number', description: '라인 번호' },
+                                    old_text: { type: 'string', description: 'Existing text to find' },
+                                    new_text: { type: 'string', description: 'The new text' },
+                                    line_number: { type: 'number', description: 'Line number' },
                                     mode: {
                                         type: 'string',
                                         enum: ['replace', 'insert_before', 'insert_after', 'delete_line'],
@@ -503,158 +503,158 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                                 }
                             }
                         },
-                        backup: { type: 'boolean', description: '백업 생성', default: true }
+                        backup: { type: 'boolean', description: 'Create a backup', default: true }
                     },
                     required: ['path', 'edits']
                 }
             },
             {
                 name: 'fast_edit_blocks',
-                description: '여러개의 정교한 블록 편집을 한 번에 처리 (fast_edit_block 배열)',
+                description: 'Processes multiple precise block edits at once (array of fast_edit_block)',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '편집할 파일 경로' },
+                        path: { type: 'string', description: 'Path of the file to edit' },
                         edits: {
                             type: 'array',
-                            description: '정교한 블록 편집 목록',
+                            description: 'List of precise block edits',
                             items: {
                                 type: 'object',
                                 properties: {
-                                    old_text: { type: 'string', description: '정확히 매칭할 기존 텍스트' },
-                                    new_text: { type: 'string', description: '새로운 텍스트' },
-                                    expected_replacements: { type: 'number', description: '예상 교체 횟수', default: 1 }
+                                    old_text: { type: 'string', description: 'The exact existing text to match' },
+                                    new_text: { type: 'string', description: 'The new text' },
+                                    expected_replacements: { type: 'number', description: 'Expected number of replacements', default: 1 }
                                 },
                                 required: ['old_text', 'new_text']
                             }
                         },
-                        backup: { type: 'boolean', description: '백업 생성', default: true }
+                        backup: { type: 'boolean', description: 'Create a backup', default: true }
                     },
                     required: ['path', 'edits']
                 }
             },
             {
                 name: 'fast_extract_lines',
-                description: '파일에서 특정 라인들을 추출합니다',
+                description: 'Extracts specific lines from a file',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '파일 경로' },
-                        line_numbers: { type: 'array', items: { type: 'number' }, description: '추출할 라인 번호들' },
-                        start_line: { type: 'number', description: '시작 라인 (범위 추출용)' },
-                        end_line: { type: 'number', description: '끝 라인 (범위 추출용)' },
-                        pattern: { type: 'string', description: '패턴으로 라인 추출' },
-                        context_lines: { type: 'number', description: '패턴 매칭시 앞뒤 컨텍스트 라인 수', default: 0 }
+                        path: { type: 'string', description: 'File path' },
+                        line_numbers: { type: 'array', items: { type: 'number' }, description: 'Line numbers to extract' },
+                        start_line: { type: 'number', description: 'Start line (for range extraction)' },
+                        end_line: { type: 'number', description: 'End line (for range extraction)' },
+                        pattern: { type: 'string', description: 'Extract lines by pattern' },
+                        context_lines: { type: 'number', description: 'Number of context lines before and after a pattern match', default: 0 }
                     },
                     required: ['path']
                 }
             },
             {
                 name: 'fast_copy_file',
-                description: '파일이나 디렉토리를 복사합니다',
+                description: 'Copies a file or directory',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        source: { type: 'string', description: '원본 파일/디렉토리 경로' },
-                        destination: { type: 'string', description: '대상 경로' },
-                        overwrite: { type: 'boolean', description: '기존 파일 덮어쓰기', default: false },
-                        preserve_timestamps: { type: 'boolean', description: '타임스탬프 보존', default: true },
-                        recursive: { type: 'boolean', description: '디렉토리 재귀적 복사', default: true },
-                        create_dirs: { type: 'boolean', description: '대상 디렉토리 자동 생성', default: true }
+                        source: { type: 'string', description: 'Source file/directory path' },
+                        destination: { type: 'string', description: 'Destination path' },
+                        overwrite: { type: 'boolean', description: 'Overwrite existing file', default: false },
+                        preserve_timestamps: { type: 'boolean', description: 'Preserve timestamps', default: true },
+                        recursive: { type: 'boolean', description: 'Recursively copy directory', default: true },
+                        create_dirs: { type: 'boolean', description: 'Automatically create destination directories', default: true }
                     },
                     required: ['source', 'destination']
                 }
             },
             {
                 name: 'fast_move_file',
-                description: '파일이나 디렉토리를 이동하거나 이름을 변경합니다',
+                description: 'Moves or renames a file or directory',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        source: { type: 'string', description: '원본 파일/디렉토리 경로' },
-                        destination: { type: 'string', description: '대상 경로' },
-                        overwrite: { type: 'boolean', description: '기존 파일 덮어쓰기', default: false },
-                        create_dirs: { type: 'boolean', description: '대상 디렉토리 자동 생성', default: true },
-                        backup_if_exists: { type: 'boolean', description: '대상 파일이 존재할 경우 백업 생성', default: false }
+                        source: { type: 'string', description: 'Source file/directory path' },
+                        destination: { type: 'string', description: 'Destination path' },
+                        overwrite: { type: 'boolean', description: 'Overwrite existing file', default: false },
+                        create_dirs: { type: 'boolean', description: 'Automatically create destination directories', default: true },
+                        backup_if_exists: { type: 'boolean', description: 'Create a backup if the destination file exists', default: false }
                     },
                     required: ['source', 'destination']
                 }
             },
             {
                 name: 'fast_delete_file',
-                description: '파일이나 디렉토리를 삭제합니다',
+                description: 'Deletes a file or directory',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string', description: '삭제할 파일/디렉토리 경로' },
-                        recursive: { type: 'boolean', description: '디렉토리 재귀적 삭제', default: false },
-                        force: { type: 'boolean', description: '강제 삭제', default: false },
-                        backup_before_delete: { type: 'boolean', description: '삭제 전 백업 생성', default: false },
-                        confirm_delete: { type: 'boolean', description: '삭제 확인 (안전장치)', default: true }
+                        path: { type: 'string', description: 'Path of the file/directory to delete' },
+                        recursive: { type: 'boolean', description: 'Recursively delete directory', default: false },
+                        force: { type: 'boolean', description: 'Force deletion', default: false },
+                        backup_before_delete: { type: 'boolean', description: 'Create a backup before deleting', default: false },
+                        confirm_delete: { type: 'boolean', description: 'Confirm deletion (safety measure)', default: true }
                     },
                     required: ['path']
                 }
             },
             {
                 name: 'fast_batch_file_operations',
-                description: '여러 파일에 대한 일괄 작업을 수행합니다',
+                description: 'Performs batch operations on multiple files',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         operations: {
                             type: 'array',
-                            description: '일괄 작업 목록',
+                            description: 'List of batch operations',
                             items: {
                                 type: 'object',
                                 properties: {
                                     operation: {
                                         type: 'string',
                                         enum: ['copy', 'move', 'delete', 'rename'],
-                                        description: '작업 유형'
+                                        description: 'Operation type'
                                     },
-                                    source: { type: 'string', description: '원본 경로' },
-                                    destination: { type: 'string', description: '대상 경로 (copy, move, rename용)' },
-                                    overwrite: { type: 'boolean', description: '덮어쓰기 허용', default: false }
+                                    source: { type: 'string', description: 'Source path' },
+                                    destination: { type: 'string', description: 'Destination path (for copy, move, rename)' },
+                                    overwrite: { type: 'boolean', description: 'Allow overwrite', default: false }
                                 },
                                 required: ['operation', 'source']
                             }
                         },
-                        stop_on_error: { type: 'boolean', description: '에러 발생시 중단', default: true },
-                        dry_run: { type: 'boolean', description: '실제 실행 없이 미리보기', default: false },
-                        create_backup: { type: 'boolean', description: '변경 전 백업 생성', default: false }
+                        stop_on_error: { type: 'boolean', description: 'Stop on error', default: true },
+                        dry_run: { type: 'boolean', description: 'Preview without actual execution', default: false },
+                        create_backup: { type: 'boolean', description: 'Create backup before changes', default: false }
                     },
                     required: ['operations']
                 }
             },
             {
                 name: 'fast_compress_files',
-                description: '파일이나 디렉토리를 압축합니다',
+                description: 'Compresses files or directories',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         paths: {
                             type: 'array',
                             items: { type: 'string' },
-                            description: '압축할 파일/디렉토리 경로들'
+                            description: 'Paths of files/directories to compress'
                         },
-                        output_path: { type: 'string', description: '출력 압축 파일 경로' },
+                        output_path: { type: 'string', description: 'Output archive file path' },
                         format: {
                             type: 'string',
                             enum: ['zip', 'tar', 'tar.gz', 'tar.bz2'],
                             default: 'zip',
-                            description: '압축 형식'
+                            description: 'Archive format'
                         },
                         compression_level: {
                             type: 'number',
                             minimum: 0,
                             maximum: 9,
                             default: 6,
-                            description: '압축 레벨 (0=저장만, 9=최고압축)'
+                            description: 'Compression level (0=store, 9=max)'
                         },
                         exclude_patterns: {
                             type: 'array',
                             items: { type: 'string' },
-                            description: '제외할 패턴들 (예: *.log, node_modules)',
+                            description: 'Patterns to exclude (e.g., *.log, node_modules)',
                             default: []
                         }
                     },
@@ -663,19 +663,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'fast_extract_archive',
-                description: '압축 파일을 해제합니다',
+                description: 'Extracts an archive file',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        archive_path: { type: 'string', description: '압축 파일 경로' },
-                        extract_to: { type: 'string', description: '해제할 디렉토리', default: '.' },
-                        overwrite: { type: 'boolean', description: '기존 파일 덮어쓰기', default: false },
-                        create_dirs: { type: 'boolean', description: '디렉토리 자동 생성', default: true },
-                        preserve_permissions: { type: 'boolean', description: '권한 보존', default: true },
+                        archive_path: { type: 'string', description: 'Archive file path' },
+                        extract_to: { type: 'string', description: 'Directory to extract to', default: '.' },
+                        overwrite: { type: 'boolean', description: 'Overwrite existing files', default: false },
+                        create_dirs: { type: 'boolean', description: 'Automatically create directories', default: true },
+                        preserve_permissions: { type: 'boolean', 'description': 'Preserve permissions', default: true },
                         extract_specific: {
                             type: 'array',
                             items: { type: 'string' },
-                            description: '특정 파일들만 해제 (선택적)'
+                            description: 'Extract only specific files (optional)'
                         }
                     },
                     required: ['archive_path']
@@ -683,25 +683,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'fast_sync_directories',
-                description: '두 디렉토리를 동기화합니다',
+                description: 'Synchronizes two directories',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        source_dir: { type: 'string', description: '원본 디렉토리' },
-                        target_dir: { type: 'string', description: '대상 디렉토리' },
+                        source_dir: { type: 'string', description: 'Source directory' },
+                        target_dir: { type: 'string', description: 'Target directory' },
                         sync_mode: {
                             type: 'string',
                             enum: ['mirror', 'update', 'merge'],
                             default: 'update',
-                            description: '동기화 모드'
+                            description: 'Synchronization mode'
                         },
-                        delete_extra: { type: 'boolean', description: '대상에만 있는 파일 삭제', default: false },
-                        preserve_newer: { type: 'boolean', description: '더 새로운 파일 보존', default: true },
-                        dry_run: { type: 'boolean', description: '실제 실행 없이 미리보기', default: false },
+                        delete_extra: { type: 'boolean', description: 'Delete files that only exist in the target', default: false },
+                        preserve_newer: { type: 'boolean', description: 'Preserve newer files', default: true },
+                        dry_run: { type: 'boolean', description: 'Preview without actual execution', default: false },
                         exclude_patterns: {
                             type: 'array',
                             items: { type: 'string' },
-                            description: '제외할 패턴들',
+                            description: 'Patterns to exclude',
                             default: ['.git', 'node_modules', '.DS_Store']
                         }
                     },
@@ -742,7 +742,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 result = await handleCreateDirectory(args);
                 break;
             case 'fast_search_files':
-                result = await handleSearchFilesWithAutoChunking(args);
+                result = await handleSearchFiles(args);
                 break;
             case 'fast_search_code':
                 result = await handleSearchCode(args);
@@ -1424,7 +1424,8 @@ async function handleCreateDirectory(args) {
 async function handleSearchFiles(args) {
     const { path: searchPath, pattern, content_search = false, case_sensitive = false, max_results = 100, context_lines = 0, // 새로 추가: 컨텍스트 라인
     file_pattern = '', // 새로 추가: 파일 패턴 필터링
-    include_binary = false // 새로 추가: 바이너리 파일 포함 여부
+    include_binary = false, // 새로 추가: 바이너리 파일 포함 여부
+    include_hidden = false // 새로 추가: 숨김 파일 포함 여부
      } = args;
     const safePath_resolved = safePath(searchPath);
     const maxResults = Math.min(max_results, 200);
@@ -1540,32 +1541,33 @@ async function handleSearchFiles(args) {
                     }
                     // 내용 검색 - ripgrep 사용
                     if (!matched && content_search) {
-                        try {
-                            // ripgrep을 사용한 빠른 검색 시도
-                            const ripgrepResults = await searchCode({
-                                rootPath: fullPath,
-                                pattern: pattern,
-                                filePattern: file_pattern,
-                                ignoreCase: !case_sensitive,
-                                maxResults: 1, // 매치 여부만 확인
-                                contextLines: context_lines
-                            });
-                            if (ripgrepResults.length > 0) {
+                        // NOTE: we now delegate bulk content searching to a single ripgrep call outside the per-file loop for performance.
+                        // The per-file loop will be skipped for content_search when a precomputed ripgrepResultsMap is present.
+                        const precomputed = global.__precomputedRipgrepResults;
+                        if (precomputed) {
+                            // Try both the original path and normalized path for matching
+                            const normalizedPath = path.resolve(fullPath);
+                            let ripResults = [];
+                            if (precomputed.has(fullPath)) {
+                                ripResults = precomputed.get(fullPath) || [];
+                            }
+                            else if (precomputed.has(normalizedPath)) {
+                                ripResults = precomputed.get(normalizedPath) || [];
+                            }
+                            if (ripResults.length > 0) {
                                 matched = true;
                                 matchType = 'content';
-                                // ripgrep 결과를 기존 형식으로 변환
-                                matchedLines = ripgrepResults.map((result) => ({
-                                    line_number: result.line,
-                                    line_content: result.match,
-                                    match_start: result.column || 0,
-                                    match_end: (result.column || 0) + result.match.length,
-                                    context_before: result.context_before || [],
-                                    context_after: result.context_after || []
+                                matchedLines = ripResults.map((r) => ({
+                                    line_number: r.line,
+                                    line_content: r.match,
+                                    match_start: r.column || 0,
+                                    match_end: (r.column || 0) + r.match.length,
+                                    context_before: r.context_before || [],
+                                    context_after: r.context_after || []
                                 }));
                             }
                         }
-                        catch (ripgrepError) {
-                            // ripgrep 실패시 기존 방법으로 폴백
+                        else {
                             try {
                                 const stats = await fs.stat(fullPath);
                                 if (stats.size < 10 * 1024 * 1024) { // 10MB 제한
@@ -1644,10 +1646,52 @@ async function handleSearchFiles(args) {
             console.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
+    // If content_search is requested, run a single ripgrep search across the rootPath
     const startTime = Date.now();
-    await searchDirectory(safePath_resolved);
+    if (content_search) {
+        try {
+            // Run ripgrep once for the root and cache results into a map for fast lookup
+            const ripResults = await searchCodeWithRipgrep({
+                rootPath: safePath_resolved,
+                pattern: pattern,
+                filePattern: file_pattern,
+                ignoreCase: !case_sensitive,
+                maxResults: maxResults,
+                includeHidden: include_hidden,
+                contextLines: context_lines
+            });
+            // Map results by normalized absolute file path to ensure consistency
+            const resultMap = new Map();
+            for (const r of ripResults) {
+                // Normalize the file path to ensure consistent matching
+                const normalizedPath = path.resolve(r.file);
+                if (!resultMap.has(normalizedPath))
+                    resultMap.set(normalizedPath, []);
+                resultMap.get(normalizedPath).push(r);
+            }
+            console.log(`Ripgrep found ${ripResults.length} matches in ${resultMap.size} files`);
+            console.log('Files with matches:', Array.from(resultMap.keys()).map(f => path.basename(f)));
+            // Debug: Log all results for troubleshooting
+            console.log('All ripgrep results:', ripResults.map(r => ({ file: r.file, line: r.line, match: r.match?.substring(0, 50) })));
+            // Expose map to per-file loop via global variable for this run
+            global.__precomputedRipgrepResults = resultMap;
+            // Now run directory traversal which will consult the precomputed map
+            await searchDirectory(safePath_resolved);
+            // Clean up the global cache
+            delete global.__precomputedRipgrepResults;
+        }
+        catch (rgError) {
+            console.warn('Ripgrep bulk search failed, falling back to per-file checks:', rgError);
+            console.log('Ripgrep error details:', rgError);
+            await searchDirectory(safePath_resolved);
+        }
+    }
+    else {
+        await searchDirectory(safePath_resolved);
+    }
     const searchTime = Date.now() - startTime;
-    return {
+    // Simple response size safety check
+    const response = {
         results: results,
         total_found: results.length,
         search_pattern: pattern,
@@ -1663,6 +1707,26 @@ async function handleSearchFiles(args) {
         ripgrep_enhanced: true, // ripgrep 통합
         timestamp: new Date().toISOString()
     };
+    // Check response size and truncate if too large (800KB limit)
+    const responseSize = Buffer.byteLength(JSON.stringify(response), 'utf8');
+    const maxResponseSize = 800 * 1024; // 800KB
+    if (responseSize > maxResponseSize) {
+        // Calculate how many results we can safely include
+        const avgResultSize = responseSize / results.length;
+        const safeResultCount = Math.floor(maxResponseSize / avgResultSize * 0.8); // 80% safety margin
+        response.results = results.slice(0, safeResultCount);
+        response.total_found = results.length; // Keep original count
+        response.max_results_reached = true;
+        response.size_limited = true;
+        response.size_limit_info = {
+            original_results: results.length,
+            returned_results: safeResultCount,
+            response_size_kb: Math.round(responseSize / 1024),
+            limit_kb: 800,
+            message: "Results truncated due to response size limit"
+        };
+    }
+    return response;
 }
 async function handleGetDirectoryTree(args) {
     const { path: rootPath, max_depth = 3, show_hidden = false, include_files = true } = args;
@@ -1837,13 +1901,13 @@ async function searchCodeWithRipgrep(options) {
         const ripgrepModule = require('@vscode/ripgrep');
         rgPath = ripgrepModule.rgPath;
     }
-    catch {
+    catch (rgError) {
         // 폴백으로 시스템 rg 사용 시도
         try {
             await execAsync('which rg');
             rgPath = 'rg';
         }
-        catch {
+        catch (systemRgError) {
             throw new Error('ripgrep not available');
         }
     }
@@ -1857,57 +1921,172 @@ async function searchCodeWithRipgrep(options) {
     ];
     if (ignoreCase)
         args.push('-i');
-    if (maxResults)
-        args.push('-m', maxResults.toString());
+    // Remove -m flag to avoid limiting individual matches - we'll limit files instead
+    // if (maxResults) args.push('-m', maxResults.toString());
     if (includeHidden)
         args.push('--hidden');
     if (contextLines > 0)
         args.push('-C', contextLines.toString());
     if (filePattern)
         args.push('-g', filePattern);
-    args.push(pattern, rootPath);
+    // Ensure pattern is not empty to avoid rg errors
+    if (!pattern || pattern.trim().length === 0) {
+        console.log('Empty pattern provided to ripgrep, returning empty results');
+        return Promise.resolve([]);
+    }
+    console.log(`Ripgrep search: pattern="${pattern}", rootPath="${rootPath}", maxResults=${maxResults}`);
+    args.push('-e', pattern, rootPath);
     return new Promise((resolve, reject) => {
         const results = [];
         const rg = spawn(rgPath, args);
-        let stdoutBuffer = '';
+        let remainder = '';
         let timeoutId;
+        let settled = false;
+        function cleanupAndResolve() {
+            if (settled)
+                return;
+            settled = true;
+            if (timeoutId)
+                clearTimeout(timeoutId);
+            try {
+                rg.stdout.removeAllListeners();
+            }
+            catch { }
+            try {
+                rg.stderr.removeAllListeners();
+            }
+            catch { }
+            try {
+                rg.removeAllListeners();
+            }
+            catch { }
+            try {
+                if (!rg.killed)
+                    rg.kill();
+            }
+            catch { }
+            // Group results by file and limit the number of files instead of individual matches
+            const fileGroups = new Map();
+            for (const result of results) {
+                const normalizedPath = path.resolve(result.file);
+                if (!fileGroups.has(normalizedPath)) {
+                    fileGroups.set(normalizedPath, []);
+                }
+                fileGroups.get(normalizedPath).push(result);
+            }
+            // Limit by number of unique files, not individual matches
+            const limitedFiles = Array.from(fileGroups.entries()).slice(0, Math.min(maxResults, 200));
+            const limitedResults = [];
+            for (const [filePath, fileResults] of limitedFiles) {
+                // Update file paths to use normalized paths
+                for (const result of fileResults) {
+                    result.file = filePath;
+                }
+                limitedResults.push(...fileResults);
+            }
+            resolve(limitedResults);
+        }
+        function cleanupAndReject(err) {
+            if (settled)
+                return;
+            settled = true;
+            if (timeoutId)
+                clearTimeout(timeoutId);
+            try {
+                rg.stdout.removeAllListeners();
+            }
+            catch { }
+            try {
+                rg.stderr.removeAllListeners();
+            }
+            catch { }
+            try {
+                rg.removeAllListeners();
+            }
+            catch { }
+            try {
+                if (!rg.killed)
+                    rg.kill();
+            }
+            catch { }
+            reject(err instanceof Error ? err : new Error(String(err)));
+        }
         if (timeout > 0) {
             timeoutId = setTimeout(() => {
-                rg.kill();
-                reject(new Error(`Search timed out after ${timeout}ms`));
+                try {
+                    if (!rg.killed)
+                        rg.kill();
+                }
+                catch { }
+                cleanupAndReject(new Error(`Search timed out after ${timeout}ms`));
             }, timeout);
         }
         rg.stdout.on('data', (data) => {
-            stdoutBuffer += data.toString();
+            remainder += data.toString();
+            let idx;
+            while ((idx = remainder.indexOf('\n')) !== -1) {
+                const line = remainder.slice(0, idx);
+                remainder = remainder.slice(idx + 1);
+                if (!line)
+                    continue;
+                try {
+                    const parsed = JSON.parse(line);
+                    if (parsed.type === 'match') {
+                        parsed.data.submatches.forEach((submatch) => {
+                            results.push({
+                                file: parsed.data.path.text,
+                                line: parsed.data.line_number,
+                                match: submatch.match.text,
+                                column: submatch.start
+                            });
+                        });
+                    }
+                    else if (parsed.type === 'context' && contextLines > 0) {
+                        results.push({
+                            file: parsed.data.path.text,
+                            line: parsed.data.line_number,
+                            match: parsed.data.lines.text.trim()
+                        });
+                    }
+                }
+                catch (error) {
+                    console.error(`Error parsing ripgrep output: ${error}`);
+                }
+                // Don't terminate early - let ripgrep finish processing all files
+                // We'll limit results at the end
+            }
         });
         rg.stderr.on('data', (data) => {
             console.error(`ripgrep error: ${data}`);
         });
         rg.on('close', (code) => {
+            if (settled)
+                return;
             if (timeoutId)
                 clearTimeout(timeoutId);
-            if (code === 0 || code === 1) {
-                const lines = stdoutBuffer.trim().split('\n');
-                for (const line of lines) {
+            console.log(`Ripgrep process closed with code ${code}, found ${results.length} results`);
+            if (remainder) {
+                const leftover = remainder.trim().split('\n');
+                for (const line of leftover) {
                     if (!line)
                         continue;
                     try {
-                        const result = JSON.parse(line);
-                        if (result.type === 'match') {
-                            result.data.submatches.forEach((submatch) => {
+                        const parsed = JSON.parse(line);
+                        if (parsed.type === 'match') {
+                            parsed.data.submatches.forEach((submatch) => {
                                 results.push({
-                                    file: result.data.path.text,
-                                    line: result.data.line_number,
+                                    file: parsed.data.path.text,
+                                    line: parsed.data.line_number,
                                     match: submatch.match.text,
                                     column: submatch.start
                                 });
                             });
                         }
-                        else if (result.type === 'context' && contextLines > 0) {
+                        else if (parsed.type === 'context' && contextLines > 0) {
                             results.push({
-                                file: result.data.path.text,
-                                line: result.data.line_number,
-                                match: result.data.lines.text.trim()
+                                file: parsed.data.path.text,
+                                line: parsed.data.line_number,
+                                match: parsed.data.lines.text.trim()
                             });
                         }
                     }
@@ -1915,16 +2094,18 @@ async function searchCodeWithRipgrep(options) {
                         console.error(`Error parsing ripgrep output: ${error}`);
                     }
                 }
-                resolve(results);
+            }
+            if (code === 0 || code === 1) {
+                cleanupAndResolve();
             }
             else {
-                reject(new Error(`ripgrep process exited with code ${code}`));
+                cleanupAndReject(new Error(`ripgrep process exited with code ${code}`));
             }
         });
         rg.on('error', (error) => {
             if (timeoutId)
                 clearTimeout(timeoutId);
-            reject(error);
+            cleanupAndReject(error);
         });
     });
 }
@@ -1967,7 +2148,6 @@ async function main() {
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
-// 편집 관련 핸들러 함수들
 // 정교한 블록 편집 핸들러 (desktop-commander 방식)
 async function handleEditBlock(args) {
     const { path: filePath, old_text, new_text, expected_replacements = 1, backup = true } = args;
