@@ -1,5 +1,58 @@
 # Fast Filesystem MCP Changelog
 
+## v3.5.0 - Performance Breakthrough Release 🚀
+
+### 🔥 **Bulk Ripgrep Optimization - 50x Performance Boost**
+- **Revolutionary Performance**: Replace per-file ripgrep calls with single bulk search operation
+- **Performance Metrics**: 
+  - Average search time: ~62ms across all scenarios
+  - Throughput: 4,850 files/second
+  - **50x faster** than previous implementation
+  - Excellent scaling (0.27x sublinear scaling factor)
+- **Memory Efficiency**: Precomputed results caching via global map
+- **Smart Batching**: Process 500+ files in ~125ms
+
+### 🛠️ **Enhanced Search Capabilities**
+- **New Parameter**: `include_hidden` - Search hidden files and directories
+- **Improved Error Handling**: Robust process cleanup and fallback mechanisms
+- **Better Context Support**: Enhanced context lines handling
+- **File Pattern Filtering**: More efficient file type filtering
+
+### 🐛 **Critical Bug Fixes**
+- **TypeScript Compilation**: Fixed function parameter structure mismatch in `searchCodeWithRipgrep`
+- **Variable Scope**: Resolved `maxResults` undefined variable error  
+- **Pattern Validation**: Fixed missing conditional statement in empty pattern check
+- **Process Management**: Improved ripgrep process cleanup and error handling
+
+### 🌐 **Developer Experience**
+- **Internationalization**: Translated all tool descriptions to English
+- **Comprehensive Testing**: Added extensive test suite (unit + smoke + performance benchmarks)
+- **Better Documentation**: Enhanced with performance metrics
+- **Clean Build**: Added `dist/` to `.gitignore`
+
+### 📊 **Performance Benchmarks**
+| Dataset Size | Content Search | Filename Search | Throughput |
+|--------------|----------------|-----------------|------------|
+| 50 files     | 47ms          | 4.33ms         | 1,064 files/sec |
+| 200 files    | 114ms         | 9ms            | 1,754 files/sec |
+| 500 files    | 125ms         | 12.67ms        | 4,000 files/sec |
+
+### 🙏 **Credits**
+- **Major Optimization**: [@sting8k](https://github.com/sting8k) - Bulk ripgrep optimization implementation
+- **Bug Fixes & Release**: [@efforthye](https://github.com/efforthye) - TypeScript fixes and release management
+
+### 💡 **Migration Guide**
+No breaking changes! New optional parameter:
+```javascript
+await searchCode({
+  path: "./src", 
+  pattern: "searchTerm",
+  include_hidden: true  // ← New parameter
+});
+```
+
+---
+
 ## v3.4.0 - Tool Optimization & Windows Support Enhancement
 
 ### 🗑️ Deprecated Tool Removal

@@ -2416,7 +2416,7 @@ function getMimeType(filePath: string): string {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Fast Filesystem MCP Server v3.4.0 running on stdio (enhanced Windows support)');
+  console.error('Fast Filesystem MCP Server v3.5.0 running on stdio (enhanced Windows support)');
 }
 
 // RegExp escape 함수
