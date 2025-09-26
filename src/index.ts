@@ -58,12 +58,19 @@ const CLAUDE_MAX_DIR_ITEMS = 1000;                 // 디렉토리 항목 최대
 
 // --- Allowed directories are managed centrally in utils.ts.
 // Parse CLI flags "--allow <dir>" to extend allowed set at runtime.
+// Parse CLI flags "--disable-tools" for tool filtering.
 const argv = process.argv.slice(2);
 const allowArgs: string[] = [];
+const disabledTools: string[] = [];
+
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--allow' && i + 1 < argv.length) {
     allowArgs.push(argv[i + 1]);
+    i++;
+  } else if ((a === '--disable-tools' || a === '-dt') && i + 1 < argv.length) {
+    const tools = argv[i + 1].split(',').map(t => t.trim()).filter(t => t);
+    disabledTools.push(...tools);
     i++;
   }
 }
@@ -73,6 +80,47 @@ if (allowArgs.length > 0) {
     console.warn('Some --allow paths were skipped:', res.skipped);
   }
 }
+
+// Tool category mapping for --disable-tools (smart prefix matching)
+function getToolsByCategory(category: string, allToolNames: string[]): string[] {
+  const prefixes: Record<string, string[]> = {
+    read: ['fast_read_', 'fast_list_', 'fast_get_', 'fast_extract_lines'],
+    write: ['fast_write_', 'fast_edit_', 'fast_create_', 'fast_copy_', 'fast_move_', 'fast_compress_', 'fast_extract_archive', 'fast_sync_', 'fast_batch_'],
+    delete: ['fast_delete_'],
+    search: ['fast_search_', 'fast_find_']
+  };
+  
+  const categoryPrefixes = prefixes[category] || [];
+  return allToolNames.filter(tool => 
+    categoryPrefixes.some(prefix => tool.startsWith(prefix) || tool === prefix)
+  );
+}
+
+// Expand disabled tools to include tools from categories
+function expandDisabledTools(disabledTools: string[], allToolNames: string[]): Set<string> {
+  const expandedSet = new Set<string>();
+  
+  for (const item of disabledTools) {
+    // First check if it's an exact tool name
+    if (item.startsWith('fast_')) {
+      expandedSet.add(item);
+    } else {
+      // Fallback: check if it's a category
+      const categoryTools = getToolsByCategory(item, allToolNames);
+      for (const tool of categoryTools) {
+        expandedSet.add(tool);
+      }
+    }
+  }
+  
+  return expandedSet;
+}
+
+// Initialize expandedDisabledTools immediately after CLI parsing
+let actualExpandedDisabledTools: Set<string> = new Set();
+
+// Pre-computed filtered tools for ListTools handler optimization
+let cachedFilteredTools: any[] = [];
 
 // 백업 파일 설정 (환경변수나 설정으로 제어)
 const CREATE_BACKUP_FILES = process.env.CREATE_BACKUP_FILES === 'true'; // 기본값: false, true로 설정시만 활성화
@@ -304,10 +352,11 @@ const server = new Server(
   }
 );
 
+// Tool disabling will be initialized after tool definitions are available
+
 // 툴 목록 정의
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
+  const allTools = [
       {
         name: 'fast_list_allowed_directories',
         description: 'Lists the allowed directories',
@@ -787,13 +836,35 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['source_dir', 'target_dir']
         }
       },
-    ],
+    ];
+  
+  // Get all tool names for dynamic tool disabling initialization
+  const allToolNames = allTools.map(tool => tool.name);
+  
+  // Initialize disabled tools immediately to prevent bypass (moved from server creation)
+  actualExpandedDisabledTools = expandDisabledTools(disabledTools, allToolNames);
+  
+  // Log disabled tools if any
+  if (actualExpandedDisabledTools.size > 0 && disabledTools.length > 0) {
+    console.log(`Disabled tools: ${Array.from(actualExpandedDisabledTools).join(', ')}`);
+  }
+
+  // Pre-compute filtered tools at startup to optimize ListTools requests
+  cachedFilteredTools = allTools.filter(tool => !actualExpandedDisabledTools.has(tool.name));
+  
+  return {
+    tools: cachedFilteredTools
   };
 });
 
 // 툴 호출 핸들러
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+
+  // Check if tool is disabled
+  if (actualExpandedDisabledTools.has(name)) {
+    throw new Error(`Tool '${name}' is disabled via --disable-tools flag`);
+  }
 
   try {
     let result;
