@@ -119,6 +119,9 @@ function expandDisabledTools(disabledTools: string[], allToolNames: string[]): S
 // Initialize expandedDisabledTools immediately after CLI parsing
 let actualExpandedDisabledTools: Set<string> = new Set();
 
+// Pre-computed filtered tools for ListTools handler optimization
+let cachedFilteredTools: any[] = [];
+
 // 백업 파일 설정 (환경변수나 설정으로 제어)
 const CREATE_BACKUP_FILES = process.env.CREATE_BACKUP_FILES === 'true'; // 기본값: false, true로 설정시만 활성화
 
@@ -846,11 +849,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     console.log(`Disabled tools: ${Array.from(actualExpandedDisabledTools).join(', ')}`);
   }
 
-  // Filter out disabled tools
-  const filteredTools = allTools.filter(tool => !actualExpandedDisabledTools.has(tool.name));
+  // Pre-compute filtered tools at startup to optimize ListTools requests
+  cachedFilteredTools = allTools.filter(tool => !actualExpandedDisabledTools.has(tool.name));
   
   return {
-    tools: filteredTools
+    tools: cachedFilteredTools
   };
 });
 
