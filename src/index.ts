@@ -116,7 +116,7 @@ function expandDisabledTools(disabledTools: string[], allToolNames: string[]): S
   return expandedSet;
 }
 
-// We'll calculate expandedDisabledTools later when we have the actual tool definitions
+// Initialize expandedDisabledTools immediately after CLI parsing
 let actualExpandedDisabledTools: Set<string> = new Set();
 
 // 백업 파일 설정 (환경변수나 설정으로 제어)
@@ -348,6 +348,8 @@ const server = new Server(
     },
   }
 );
+
+// Tool disabling will be initialized after tool definitions are available
 
 // 툴 목록 정의
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -833,19 +835,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
     ];
   
-  // Get all tool names for category expansion
+  // Get all tool names for dynamic tool disabling initialization
   const allToolNames = allTools.map(tool => tool.name);
   
-  // Expand disabled tools with actual tool names
+  // Initialize disabled tools immediately to prevent bypass (moved from server creation)
   actualExpandedDisabledTools = expandDisabledTools(disabledTools, allToolNames);
-  
-  // Filter out disabled tools
-  const filteredTools = allTools.filter(tool => !actualExpandedDisabledTools.has(tool.name));
   
   // Log disabled tools if any
   if (actualExpandedDisabledTools.size > 0 && disabledTools.length > 0) {
-    console.log(`Filtered out ${actualExpandedDisabledTools.size} tools: ${Array.from(actualExpandedDisabledTools).join(', ')}`);
+    console.log(`Disabled tools: ${Array.from(actualExpandedDisabledTools).join(', ')}`);
   }
+
+  // Filter out disabled tools
+  const filteredTools = allTools.filter(tool => !actualExpandedDisabledTools.has(tool.name));
   
   return {
     tools: filteredTools
