@@ -7,8 +7,7 @@ src/index.ts linguist-language=TypeScript
 *.mjs linguist-language=JavaScript
 *.js linguist-language=JavaScript
 
-# Mark test and script files as generated to exclude from language stats
-scripts/* linguist-generated=true
+# Mark only test data and generated files as excluded
 test-search-data/* linguist-generated=true
 
 # Mark config and lock files as generated
@@ -16,9 +15,5 @@ package-lock.json linguist-generated=true
 pnpm-lock.yaml linguist-generated=true
 *.lock linguist-generated=true
 
-# Documentation and config files
+# Documentation files
 *.md linguist-documentation=true
-*.json linguist-generated=true
-tsconfig.json linguist-generated=true
-vercel.json linguist-generated=true
-glama.json linguist-generated=true
