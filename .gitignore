@@ -1,6 +1,7 @@
 # Build outputs
 dist/
 node_modules/
+package-lock.json
 
 # Deployment
 .vercel
