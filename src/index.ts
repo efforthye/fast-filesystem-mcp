@@ -2377,11 +2377,7 @@ async function searchCodeWithRipgrep(options: {
               });
             });
           } else if (parsed.type === 'context' && contextLines > 0) {
-            results.push({
-              file: parsed.data.path.text,
-              line: parsed.data.line_number,
-              match: parsed.data.lines.text.trim()
-            });
+            // Ignore raw context events; we'll populate context_before/context_after later by rereading files
           }
         } catch (error) {
           console.error(`Error parsing ripgrep output: ${error}`);
@@ -2417,11 +2413,7 @@ async function searchCodeWithRipgrep(options: {
                 });
               });
             } else if (parsed.type === 'context' && contextLines > 0) {
-              results.push({
-                file: parsed.data.path.text,
-                line: parsed.data.line_number,
-                match: parsed.data.lines.text.trim()
-              });
+              // Ignore raw context events; we'll populate context_before/context_after later by rereading files
             }
           } catch (error) {
             console.error(`Error parsing ripgrep output: ${error}`);
@@ -3170,6 +3162,7 @@ async function handleSearchCode(args: any) {
 
   try {
     // ripgrep을 사용한 고성능 검색 시도
+    const _searchStartMs = Date.now();
     const searchResults = await searchCode({
       rootPath: safePath_resolved,
       pattern: pattern,
@@ -3204,13 +3197,43 @@ async function handleSearchCode(args: any) {
       fileGroups[result.file].total_matches++;
     }
 
-    // 파일별로 결과 정리
+    // 파일별로 결과 정리 (+ populate contexts by rereading file if requested)
     for (const [filePath, fileData] of Object.entries(fileGroups)) {
+      const limitedMatches = fileData.matches.slice(0, max_results);
+
+      // Populate context_before/context_after from actual file content if requested
+      if (context_lines > 0) {
+        try {
+          const stats = await fs.stat(filePath);
+          const maxBytes = max_file_size * 1024 * 1024;
+          if (stats.size <= maxBytes) {
+            const content = await fs.readFile(filePath, 'utf-8');
+            const lines = content.split('\n');
+            const N = context_lines;
+            for (const m of limitedMatches) {
+              const idx = Math.max(0, (m.line_number || 1) - 1);
+              m.context_before = [];
+              m.context_after = [];
+              for (let j = Math.max(0, idx - N); j < idx; j++) {
+                m.context_before.push(lines[j] ?? '');
+              }
+              for (let j = idx + 1; j <= Math.min(lines.length - 1, idx + N); j++) {
+                m.context_after.push(lines[j] ?? '');
+              }
+            }
+          } else {
+            // Skip context population for very large files
+          }
+        } catch {
+          // Ignore file read errors; leave context arrays empty
+        }
+      }
+
       results.push({
         file: filePath,
         file_name: path.basename(filePath),
         total_matches: fileData.total_matches,
-        matches: fileData.matches.slice(0, max_results) // 파일당 최대 결과 제한
+        matches: limitedMatches // 파일당 최대 결과 제한 (with context populated if available)
       });
     }
 
@@ -3238,7 +3261,7 @@ async function handleSearchCode(args: any) {
       include_hidden: include_hidden,
       max_file_size_mb: max_file_size,
       ripgrep_used: true,
-      search_time_ms: 0, // ripgrep 내부에서 측정됨
+      search_time_ms: (Date.now() - _searchStartMs),
       formatted_output: combinedOutput.trim(),
       timestamp: new Date().toISOString()
     };
