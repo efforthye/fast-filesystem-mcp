@@ -2267,7 +2267,7 @@ async function searchCodeWithRipgrep(options: {
   } catch (rgError) {
     // 폴백으로 시스템 rg 사용 시도
     try {
-      await execAsync('which rg');
+      await execAsync(process.platform === 'win32' ? 'where rg' : 'which rg');
       rgPath = 'rg';
     } catch (systemRgError) {
       throw new Error('ripgrep not available');
@@ -3221,11 +3221,14 @@ async function handleSearchCode(args: any) {
                 m.context_after.push(lines[j] ?? '');
               }
             }
-          } else {
-            // Skip context population for very large files
           }
-        } catch {
-          // Ignore file read errors; leave context arrays empty
+          // Skip context population for files larger than max_file_size
+        } catch (error) {
+          // Intentionally ignore file read errors; leave context arrays empty
+          // This ensures graceful degradation when files can't be read
+          if (process.env.DEBUG) {
+            console.debug(`Failed to read context for ${filePath}:`, error);
+          }
         }
       }
 
