@@ -247,8 +247,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ## Badge
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/efforthye-fast-filesystem-mcp-badge.png)](https://mseep.ai/app/efforthye-fast-filesystem-mcp) <br/>
-[![LobeHub MCP Badge](https://lobehub.com/badge/mcp/efforthye-fast-filesystem-mcp)](https://lobehub.com/mcp/efforthye-fast-filesystem-mcp)<br/>
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/efforthye-fast-filesystem-mcp-badge.png)](https://mseep.ai/app/efforthye-fast-filesystem-mcp)<br/>
+[![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/eb4a3f2f-f985-4efb-8dc2-3d319cf9b361)[![LobeHub MCP Badge](https://lobehub.com/badge/mcp/efforthye-fast-filesystem-mcp)](https://lobehub.com/mcp/efforthye-fast-filesystem-mcp)<br/>
 
 ## Repository
 https://github.com/efforthye/fast-filesystem-mcp
