@@ -1,5 +1,3 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/efforthye-fast-filesystem-mcp-badge.png)](https://mseep.ai/app/efforthye-fast-filesystem-mcp)
-
 # Fast Filesystem MCP
 Advanced filesystem operations for Claude Desktop with large file handling capabilities and Claude-optimized features.
 
@@ -248,6 +246,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+## Badge
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/efforthye-fast-filesystem-mcp-badge.png)](https://mseep.ai/app/efforthye-fast-filesystem-mcp) <br/>
+[![LobeHub MCP Badge](https://lobehub.com/badge/mcp/efforthye-fast-filesystem-mcp)](https://lobehub.com/mcp/efforthye-fast-filesystem-mcp)<br/>
+
 ## Repository
-[![MCP Badge](https://lobehub.com/badge/mcp/efforthye-fast-filesystem-mcp)](https://lobehub.com/mcp/efforthye-fast-filesystem-mcp)<br/>
 https://github.com/efforthye/fast-filesystem-mcp
