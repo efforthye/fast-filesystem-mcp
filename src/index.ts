@@ -1862,6 +1862,32 @@ async function handleSearchFiles(args: any) {
                   context_before: r.context_before || [],
                   context_after: r.context_after || []
                 }));
+
+                // Populate context_before/context_after from actual file content if requested
+                if (context_lines > 0 && matchedLines.length > 0) {
+                  try {
+                    const stats = await fs.stat(fullPath);
+                    const maxBytes = 10 * 1024 * 1024; // 10MB limit
+                    if (stats.size <= maxBytes) {
+                      const content = await fs.readFile(fullPath, 'utf-8');
+                      const lines = content.split('\n');
+                      const N = context_lines;
+                      for (const m of matchedLines) {
+                        const idx = Math.max(0, (m.line_number || 1) - 1);
+                        m.context_before = [];
+                        m.context_after = [];
+                        for (let j = Math.max(0, idx - N); j < idx; j++) {
+                          m.context_before.push(lines[j] ?? '');
+                        }
+                        for (let j = idx + 1; j <= Math.min(lines.length - 1, idx + N); j++) {
+                          m.context_after.push(lines[j] ?? '');
+                        }
+                      }
+                    }
+                  } catch {
+                    // Ignore file read errors; leave context arrays empty
+                  }
+                }
               }
             } else {
               try {
