@@ -58,12 +58,19 @@ const CLAUDE_MAX_DIR_ITEMS = 1000;                 // 디렉토리 항목 최대
 
 // --- Allowed directories are managed centrally in utils.ts.
 // Parse CLI flags "--allow <dir>" to extend allowed set at runtime.
+// Parse CLI flags "--disable-tools" for tool filtering.
 const argv = process.argv.slice(2);
 const allowArgs: string[] = [];
+const disabledTools: string[] = [];
+
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--allow' && i + 1 < argv.length) {
     allowArgs.push(argv[i + 1]);
+    i++;
+  } else if ((a === '--disable-tools' || a === '-dt') && i + 1 < argv.length) {
+    const tools = argv[i + 1].split(',').map(t => t.trim()).filter(t => t);
+    disabledTools.push(...tools);
     i++;
   }
 }
@@ -73,6 +80,47 @@ if (allowArgs.length > 0) {
     console.warn('Some --allow paths were skipped:', res.skipped);
   }
 }
+
+// Tool category mapping for --disable-tools (smart prefix matching)
+function getToolsByCategory(category: string, allToolNames: string[]): string[] {
+  const prefixes: Record<string, string[]> = {
+    read: ['fast_read_', 'fast_list_', 'fast_get_', 'fast_extract_lines'],
+    write: ['fast_write_', 'fast_edit_', 'fast_create_', 'fast_copy_', 'fast_move_', 'fast_compress_', 'fast_extract_archive', 'fast_sync_', 'fast_batch_'],
+    delete: ['fast_delete_'],
+    search: ['fast_search_', 'fast_find_']
+  };
+  
+  const categoryPrefixes = prefixes[category] || [];
+  return allToolNames.filter(tool => 
+    categoryPrefixes.some(prefix => tool.startsWith(prefix) || tool === prefix)
+  );
+}
+
+// Expand disabled tools to include tools from categories
+function expandDisabledTools(disabledTools: string[], allToolNames: string[]): Set<string> {
+  const expandedSet = new Set<string>();
+  
+  for (const item of disabledTools) {
+    // First check if it's an exact tool name
+    if (item.startsWith('fast_')) {
+      expandedSet.add(item);
+    } else {
+      // Fallback: check if it's a category
+      const categoryTools = getToolsByCategory(item, allToolNames);
+      for (const tool of categoryTools) {
+        expandedSet.add(tool);
+      }
+    }
+  }
+  
+  return expandedSet;
+}
+
+// Initialize expandedDisabledTools immediately after CLI parsing
+let actualExpandedDisabledTools: Set<string> = new Set();
+
+// Pre-computed filtered tools for ListTools handler optimization
+let cachedFilteredTools: any[] = [];
 
 // 백업 파일 설정 (환경변수나 설정으로 제어)
 const CREATE_BACKUP_FILES = process.env.CREATE_BACKUP_FILES === 'true'; // 기본값: false, true로 설정시만 활성화
@@ -304,10 +352,11 @@ const server = new Server(
   }
 );
 
+// Tool disabling will be initialized after tool definitions are available
+
 // 툴 목록 정의
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
+  const allTools = [
       {
         name: 'fast_list_allowed_directories',
         description: 'Lists the allowed directories',
@@ -787,13 +836,35 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['source_dir', 'target_dir']
         }
       },
-    ],
+    ];
+  
+  // Get all tool names for dynamic tool disabling initialization
+  const allToolNames = allTools.map(tool => tool.name);
+  
+  // Initialize disabled tools immediately to prevent bypass (moved from server creation)
+  actualExpandedDisabledTools = expandDisabledTools(disabledTools, allToolNames);
+  
+  // Log disabled tools if any
+  if (actualExpandedDisabledTools.size > 0 && disabledTools.length > 0) {
+    console.log(`Disabled tools: ${Array.from(actualExpandedDisabledTools).join(', ')}`);
+  }
+
+  // Pre-compute filtered tools at startup to optimize ListTools requests
+  cachedFilteredTools = allTools.filter(tool => !actualExpandedDisabledTools.has(tool.name));
+  
+  return {
+    tools: cachedFilteredTools
   };
 });
 
 // 툴 호출 핸들러
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+
+  // Check if tool is disabled
+  if (actualExpandedDisabledTools.has(name)) {
+    throw new Error(`Tool '${name}' is disabled via --disable-tools flag`);
+  }
 
   try {
     let result;
@@ -1791,6 +1862,32 @@ async function handleSearchFiles(args: any) {
                   context_before: r.context_before || [],
                   context_after: r.context_after || []
                 }));
+
+                // Populate context_before/context_after from actual file content if requested
+                if (context_lines > 0 && matchedLines.length > 0) {
+                  try {
+                    const stats = await fs.stat(fullPath);
+                    const maxBytes = 10 * 1024 * 1024; // 10MB limit
+                    if (stats.size <= maxBytes) {
+                      const content = await fs.readFile(fullPath, 'utf-8');
+                      const lines = content.split('\n');
+                      const N = context_lines;
+                      for (const m of matchedLines) {
+                        const idx = Math.max(0, (m.line_number || 1) - 1);
+                        m.context_before = [];
+                        m.context_after = [];
+                        for (let j = Math.max(0, idx - N); j < idx; j++) {
+                          m.context_before.push(lines[j] ?? '');
+                        }
+                        for (let j = idx + 1; j <= Math.min(lines.length - 1, idx + N); j++) {
+                          m.context_after.push(lines[j] ?? '');
+                        }
+                      }
+                    }
+                  } catch {
+                    // Ignore file read errors; leave context arrays empty
+                  }
+                }
               }
             } else {
               try {
@@ -2196,7 +2293,7 @@ async function searchCodeWithRipgrep(options: {
   } catch (rgError) {
     // 폴백으로 시스템 rg 사용 시도
     try {
-      await execAsync('which rg');
+      await execAsync(process.platform === 'win32' ? 'where rg' : 'which rg');
       rgPath = 'rg';
     } catch (systemRgError) {
       throw new Error('ripgrep not available');
@@ -2306,11 +2403,7 @@ async function searchCodeWithRipgrep(options: {
               });
             });
           } else if (parsed.type === 'context' && contextLines > 0) {
-            results.push({
-              file: parsed.data.path.text,
-              line: parsed.data.line_number,
-              match: parsed.data.lines.text.trim()
-            });
+            // Ignore raw context events; we'll populate context_before/context_after later by rereading files
           }
         } catch (error) {
           console.error(`Error parsing ripgrep output: ${error}`);
@@ -2346,11 +2439,7 @@ async function searchCodeWithRipgrep(options: {
                 });
               });
             } else if (parsed.type === 'context' && contextLines > 0) {
-              results.push({
-                file: parsed.data.path.text,
-                line: parsed.data.line_number,
-                match: parsed.data.lines.text.trim()
-              });
+              // Ignore raw context events; we'll populate context_before/context_after later by rereading files
             }
           } catch (error) {
             console.error(`Error parsing ripgrep output: ${error}`);
@@ -3099,6 +3188,7 @@ async function handleSearchCode(args: any) {
 
   try {
     // ripgrep을 사용한 고성능 검색 시도
+    const _searchStartMs = Date.now();
     const searchResults = await searchCode({
       rootPath: safePath_resolved,
       pattern: pattern,
@@ -3133,13 +3223,46 @@ async function handleSearchCode(args: any) {
       fileGroups[result.file].total_matches++;
     }
 
-    // 파일별로 결과 정리
+    // 파일별로 결과 정리 (+ populate contexts by rereading file if requested)
     for (const [filePath, fileData] of Object.entries(fileGroups)) {
+      const limitedMatches = fileData.matches.slice(0, max_results);
+
+      // Populate context_before/context_after from actual file content if requested
+      if (context_lines > 0) {
+        try {
+          const stats = await fs.stat(filePath);
+          const maxBytes = max_file_size * 1024 * 1024;
+          if (stats.size <= maxBytes) {
+            const content = await fs.readFile(filePath, 'utf-8');
+            const lines = content.split('\n');
+            const N = context_lines;
+            for (const m of limitedMatches) {
+              const idx = Math.max(0, (m.line_number || 1) - 1);
+              m.context_before = [];
+              m.context_after = [];
+              for (let j = Math.max(0, idx - N); j < idx; j++) {
+                m.context_before.push(lines[j] ?? '');
+              }
+              for (let j = idx + 1; j <= Math.min(lines.length - 1, idx + N); j++) {
+                m.context_after.push(lines[j] ?? '');
+              }
+            }
+          }
+          // Skip context population for files larger than max_file_size
+        } catch (error) {
+          // Intentionally ignore file read errors; leave context arrays empty
+          // This ensures graceful degradation when files can't be read
+          if (process.env.DEBUG) {
+            console.debug(`Failed to read context for ${filePath}:`, error);
+          }
+        }
+      }
+
       results.push({
         file: filePath,
         file_name: path.basename(filePath),
         total_matches: fileData.total_matches,
-        matches: fileData.matches.slice(0, max_results) // 파일당 최대 결과 제한
+        matches: limitedMatches // 파일당 최대 결과 제한 (with context populated if available)
       });
     }
 
@@ -3167,7 +3290,7 @@ async function handleSearchCode(args: any) {
       include_hidden: include_hidden,
       max_file_size_mb: max_file_size,
       ripgrep_used: true,
-      search_time_ms: 0, // ripgrep 내부에서 측정됨
+      search_time_ms: (Date.now() - _searchStartMs),
       formatted_output: combinedOutput.trim(),
       timestamp: new Date().toISOString()
     };
