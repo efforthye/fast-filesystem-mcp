@@ -1,6 +1,6 @@
 {
   "name": "fast-filesystem-mcp",
-  "version": "3.5.0",
+  "version": "3.5.1",
   "description": "Fast Filesystem MCP Server - Advanced file operations with Auto-Chunking, Sequential Reading, complex file operations (copy, move, delete, batch, compress), optimized for Claude Desktop",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,8 +16,9 @@
     "smoke:search": "node scripts/smoke-bulk-search.mjs",
     "test:unit": "node scripts/test-bulk-optimization.mjs",
     "benchmark": "node scripts/benchmark-search.mjs",
+    "benchmark:logger": "node scripts/benchmark-logger.mjs",
     "test:all": "node scripts/test-all.mjs",
-    "test": "npm run test:unit && npm run smoke:search",
+    "test": "npm run test:unit && npm run smoke:search && npm run test:logger",
     "prepare": "npm run build",
     "clean": "rm -rf dist",
     "publish:npm": "npm run build && npm publish --registry=https://registry.npmjs.org",

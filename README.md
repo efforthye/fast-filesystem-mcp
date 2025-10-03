@@ -37,6 +37,14 @@ Control backup file creation behavior.
 
 **Note**: Backup files are created with timestamps (e.g., `file.txt.backup.1755485284402`) to prevent data loss during edits.
 
+### Debug and Logging Configuration
+The MCP server uses a safe logging system that prevents JSON-RPC communication errors.
+- `DEBUG_MCP=true` or `MCP_DEBUG=true`: Enable debug logging to stderr
+- `MCP_LOG_FILE=/path/to/log.txt`: Write logs to file instead of stderr
+- `MCP_SILENT_ERRORS=true` or `SILENT_ERRORS=true`: Suppress error messages in responses
+
+**Note**: Debug output is automatically suppressed by default to prevent JSON parsing errors in Claude Desktop.
+
 ## New Version Update
 To update to the latest version, follow these steps.
 1. **Uninstall previous version**

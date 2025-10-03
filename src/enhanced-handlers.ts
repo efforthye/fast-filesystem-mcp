@@ -15,6 +15,7 @@ import {
   CLAUDE_MAX_LINES,
   CLAUDE_MAX_DIR_ITEMS
 } from './utils.js';
+import { logger } from './logger/index.js';
 
 // handleReadFile 함수 (자동 청킹 지원)
 export async function handleReadFileWithAutoChunking(args: any) {
@@ -562,7 +563,10 @@ export async function handleSearchFilesWithAutoChunking(args: any) {
         }
       }
     } catch (error) {
-      console.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Silent: suppress warnings to prevent JSON parsing errors
+      if (process.env.DEBUG_MCP === 'true') {
+        logger.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
     
     return true;

@@ -1,5 +1,30 @@
 # Fast Filesystem MCP Changelog
 
+## v3.5.1 - Safe Logging System 🛡️
+
+### 🔇 **Safe MCP Logger Implementation**
+- **JSON-RPC Safety**: Prevents console output from interfering with MCP communication
+- **Custom Logger**: Replaced all `console.*` calls with safe logger implementation
+- **Error Prevention**: Eliminates JSON parsing errors in Claude Desktop
+
+### 🎛️ **Debug Configuration**
+- **Environment Variables**:
+  - `DEBUG_MCP=true` or `MCP_DEBUG=true`: Enable debug logging
+  - `MCP_LOG_FILE=/path/to/log.txt`: Write logs to file instead of stderr
+  - `MCP_SILENT_ERRORS=true`: Suppress error messages in responses
+- **Auto-suppression**: Debug output automatically disabled by default
+
+### 🐛 **Bug Fixes**
+- Fixed JSON parsing errors in MCP server communication
+- Resolved console output interference with JSON-RPC protocol
+- Corrected stdout/stderr separation for proper MCP operation
+
+### 🔧 **Technical Improvements**
+- All logging now goes through `SafeMCPLogger` class
+- Automatic console override when debugging disabled
+- File-based logging support for production debugging
+- Clean separation of debug output and JSON-RPC communication
+
 ## v3.5.0 - Performance Breakthrough Release 🚀
 
 ### 🔥 **Bulk Ripgrep Optimization - 50x Performance Boost**
