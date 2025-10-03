@@ -86,6 +86,11 @@ export class SafeMCPLogger {
     this.writeLog('LOG', message, ...args);
   }
   
+  // Public getter to check if logging is enabled
+  public isDebugEnabled(): boolean {
+    return this.isEnabled;
+  }
+  
   // Safe console override methods
   public overrideConsole(): void {
     if (!this.isEnabled) {
@@ -98,11 +103,12 @@ export class SafeMCPLogger {
       console.info = () => {};
     } else {
       // When debugging is enabled, redirect to our safe logger
-      console.log = (...args) => this.log(args.join(' '));
-      console.warn = (...args) => this.warn(args.join(' '));
-      console.error = (...args) => this.error(args.join(' '));
-      console.debug = (...args) => this.debug(args.join(' '));
-      console.info = (...args) => this.info(args.join(' '));
+      // Properly handle objects and multiple arguments
+      console.log = (message, ...args) => this.log(String(message ?? ''), ...args);
+      console.warn = (message, ...args) => this.warn(String(message ?? ''), ...args);
+      console.error = (message, ...args) => this.error(String(message ?? ''), ...args);
+      console.debug = (message, ...args) => this.debug(String(message ?? ''), ...args);
+      console.info = (message, ...args) => this.info(String(message ?? ''), ...args);
     }
   }
   

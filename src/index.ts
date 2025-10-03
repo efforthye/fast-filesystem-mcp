@@ -2002,9 +2002,7 @@ async function handleSearchFiles(args: any) {
     } catch (error) {
       // 권한 없는 디렉토리 등은 조용히 무시하지만, 로그에는 기록
       // Silent: suppress warnings to prevent JSON parsing errors
-      if (process.env.DEBUG_MCP === 'true') {
-        logger.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
+      logger.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -2440,9 +2438,7 @@ async function searchCodeWithRipgrep(options: {
           }
         } catch (error) {
           // Silent: prevent error output that breaks JSON parsing
-          if (process.env.DEBUG_MCP === 'true') {
-            logger.error(`Error parsing ripgrep output: ${error}`);
-          }
+          logger.error(`Error parsing ripgrep output: ${error}`);
         }
         // Don't terminate early - let ripgrep finish processing all files
         // We'll limit results at the end
@@ -2479,12 +2475,7 @@ async function searchCodeWithRipgrep(options: {
             }
           } catch (error) {
             // Silent: prevent error output that breaks JSON parsing
-            if (process.env.DEBUG_MCP === 'true') {
-              // Silent: prevent error output that breaks JSON parsing
-          if (process.env.DEBUG_MCP === 'true') {
             logger.error(`Error parsing ripgrep output: ${error}`);
-          }
-            }
           }
         }
       }
@@ -2551,7 +2542,8 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   
-  const debugMode = process.env.DEBUG_MCP === 'true' || process.env.MCP_DEBUG === 'true';
+  // Use logger's isDebugEnabled method to avoid duplication
+  const debugMode = logger.isDebugEnabled();
   const silentMode = SILENT_ERRORS;
   
   // Use logger instead of console.error for server startup message
@@ -3584,9 +3576,7 @@ async function handleSearchCodeFallback(args: any) {
     } catch (error) {
       // 권한 없는 디렉토리 등은 조용히 무시
       // Silent: suppress warnings to prevent JSON parsing errors
-      if (process.env.DEBUG_MCP === 'true') {
-        logger.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
+      logger.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
