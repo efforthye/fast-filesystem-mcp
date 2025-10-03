@@ -8,6 +8,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Store original console methods before any overrides
+const originalConsole = {
+  log: console.log,
+  warn: console.warn,
+  error: console.error,
+  debug: console.debug,
+  info: console.info,
+};
+
 export class SafeMCPLogger {
   private logFile: string | null = null;
   private isEnabled: boolean = false;
@@ -99,15 +108,8 @@ export class SafeMCPLogger {
   
   // Restore original console methods
   public restoreConsole(): void {
-    // Store original methods before overriding
-    const originalConsole = {
-      log: console.log,
-      warn: console.warn,
-      error: console.error,
-      debug: console.debug,
-      info: console.info
-    };
-    
+    // Restore the original console methods that were stored
+    // at module initialization, before any overrides
     console.log = originalConsole.log;
     console.warn = originalConsole.warn;
     console.error = originalConsole.error;
