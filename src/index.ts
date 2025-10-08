@@ -1293,30 +1293,70 @@ async function handleReadMultipleFiles(args: any) {
   const incompleteFiles = results.filter(r => r.has_more);
   const completedFiles = results.filter(r => r.is_complete);
 
-  return {
+  // 응답 크기 체크 (100000 characters 제한)
+  const MAX_RESPONSE_SIZE = 90000; // 여유있게 90000으로 설정
+  let estimatedSize = JSON.stringify({
     message: 'Multiple files read completed',
+    total_files: paths.length,
+    successful: totalSuccessful,
+    errors: totalErrors
+  }).length;
+
+  // 반환할 파일 결과 필터링 (순서대로)
+  let filteredResults = [];
+  let remainingPaths = [];
+  
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const resultSize = JSON.stringify(result).length;
+    
+    if (estimatedSize + resultSize < MAX_RESPONSE_SIZE) {
+      filteredResults.push(result);
+      estimatedSize += resultSize;
+    } else {
+      // 나머지 파일들은 다음 요청을 위해 저장
+      for (let j = i; j < results.length; j++) {
+        remainingPaths.push(results[j].path);
+      }
+      break;
+    }
+  }
+
+  const hasMore = remainingPaths.length > 0;
+
+  return {
+    message: hasMore ? 'Multiple files read completed (partial response)' : 'Multiple files read completed',
     total_files: paths.length,
     successful: totalSuccessful,
     errors: totalErrors,
     completed_files: completedFiles.length,
     incomplete_files: incompleteFiles.length,
-    files: results,
+    files: filteredResults,
+    files_in_response: filteredResults.length,
     failed_files: errors,
+    has_more: hasMore,
+    remaining_files: hasMore ? remainingPaths.length : 0,
     continuation_data: Object.keys(continuationData).length > 0 ? continuationData : null,
-    continuation_guide: incompleteFiles.length > 0 ? {
-      message: "Some files were not fully read",
-      next_request_example: {
+    continuation_guide: (incompleteFiles.length > 0 || hasMore) ? {
+      message: hasMore ? "Response size limit reached - call again with remaining files" : "Some files were not fully read",
+      next_request: hasMore ? {
+        tool: "fast_read_multiple_files",
+        paths: remainingPaths,
+        continuation_tokens: continuationData,
+        auto_continue: auto_continue
+      } : {
         paths: incompleteFiles.map(f => f.path),
         continuation_tokens: continuationData,
         auto_continue: false
       },
-      tip: "Set auto_continue: false to read files in smaller chunks"
+      tip: hasMore ? "Call fast_read_multiple_files again with the paths from next_request" : "Set auto_continue: false to read files in smaller chunks"
     } : null,
     performance: {
       parallel_read: true,
       chunk_size_mb: chunk_size / (1024 * 1024),
       auto_continue_enabled: auto_continue,
-      max_file_size_limit_mb: auto_continue ? 5 : 1
+      max_file_size_limit_mb: auto_continue ? 5 : 1,
+      response_size_limit_kb: MAX_RESPONSE_SIZE / 1024
     },
     timestamp: new Date().toISOString()
   };
