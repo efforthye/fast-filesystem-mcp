@@ -46,6 +46,8 @@ import {
   getAllowedDirectories,
   addAllowedDirectories
 } from './utils.js';
+// Import safe logger to prevent JSON parsing errors
+import { logger, initializeSafeLogging } from './logger/index.js';
 // import { searchCode, SearchResult } from './search.js';
 
 const execAsync = promisify(exec);
@@ -77,7 +79,7 @@ for (let i = 0; i < argv.length; i++) {
 if (allowArgs.length > 0) {
   const res = addAllowedDirectories(allowArgs);
   if (res.skipped.length > 0) {
-    console.warn('Some --allow paths were skipped:', res.skipped);
+    logger.warn('Some --allow paths were skipped:', res.skipped);
   }
 }
 
@@ -326,7 +328,7 @@ async function checkDiskSpace(dirPath: string, requiredBytes: number): Promise<v
       );
     }
   } catch (error) {
-    console.warn('Could not check disk space:', error);
+    logger.warn('Could not check disk space:', error);
   }
 }
 
@@ -846,7 +848,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   
   // Log disabled tools if any
   if (actualExpandedDisabledTools.size > 0 && disabledTools.length > 0) {
-    console.log(`Disabled tools: ${Array.from(actualExpandedDisabledTools).join(', ')}`);
+    logger.info(`Disabled tools: ${Array.from(actualExpandedDisabledTools).join(', ')}`);
   }
 
   // Pre-compute filtered tools at startup to optimize ListTools requests
@@ -857,13 +859,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
+// Add environment variable to control error suppression
+const SILENT_ERRORS = process.env.MCP_SILENT_ERRORS === 'true' || process.env.SILENT_ERRORS === 'true';
+
 // 툴 호출 핸들러
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
+  // Silent mode: return friendly error response instead of throwing
+  const handleError = (error: any) => {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    if (SILENT_ERRORS) {
+      // Return a normal response with error info embedded
+      // This prevents Claude Desktop from showing error snackbars
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            status: 'error',
+            error: errorMessage,
+            tool: name,
+            message: 'The operation could not be completed',
+            timestamp: new Date().toISOString(),
+            silent_mode: true
+          }, null, 2)
+        }]
+      };
+    }
+    
+    // Normal error behavior when not in silent mode
+    throw new Error(errorMessage);
+  };
+
   // Check if tool is disabled
   if (actualExpandedDisabledTools.has(name)) {
-    throw new Error(`Tool '${name}' is disabled via --disable-tools flag`);
+    return handleError(new Error(`Tool '${name}' is disabled via --disable-tools flag`));
   }
 
   try {
@@ -958,7 +989,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }]
     };
   } catch (error) {
-    throw new Error(error instanceof Error ? error.message : 'Unknown error');
+    // Use the handleError function for consistent error handling
+    return handleError(error);
   }
 });
 
@@ -1969,7 +2001,8 @@ async function handleSearchFiles(args: any) {
       }
     } catch (error) {
       // 권한 없는 디렉토리 등은 조용히 무시하지만, 로그에는 기록
-      console.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Silent: suppress warnings to prevent JSON parsing errors
+      logger.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -2002,11 +2035,9 @@ async function handleSearchFiles(args: any) {
         resultMap.get(normalizedPath)!.push(r);
       }
       
-      console.log(`Ripgrep found ${ripResults.length} matches in ${resultMap.size} files`);
-      console.log('Files with matches:', Array.from(resultMap.keys()).map(f => path.basename(f)));
-      
-      // Debug: Log all results for troubleshooting
-      console.log('All ripgrep results:', ripResults.map(r => ({ file: r.file, line: r.line, match: r.match?.substring(0, 50) })));
+      logger.debug(`Ripgrep found ${ripResults.length} matches in ${resultMap.size} files`);
+      logger.debug('Files with matches:', Array.from(resultMap.keys()).map(f => path.basename(f)));
+      logger.debug('All ripgrep results:', ripResults.map(r => ({ file: r.file, line: r.line, match: r.match?.substring(0, 50) })));
 
 
       // Expose map to per-file loop via global variable for this run
@@ -2019,8 +2050,8 @@ async function handleSearchFiles(args: any) {
       delete (global as any).__precomputedRipgrepResults;
 
     } catch (rgError) {
-      console.warn('Ripgrep bulk search failed, falling back to per-file checks:', rgError);
-      console.log('Ripgrep error details:', rgError);
+      logger.warn('Ripgrep bulk search failed, falling back to per-file checks:', rgError);
+      logger.debug('Ripgrep error details:', rgError);
       await searchDirectory(safePath_resolved);
     }
   } else {
@@ -2318,10 +2349,10 @@ async function searchCodeWithRipgrep(options: {
 
   // Ensure pattern is not empty to avoid rg errors
   if (!pattern || pattern.trim().length === 0) {
-    console.log('Empty pattern provided to ripgrep, returning empty results');
+    logger.debug('Empty pattern provided to ripgrep, returning empty results');
     return Promise.resolve([]);
   }
-  console.log(`Ripgrep search: pattern="${pattern}", rootPath="${rootPath}", maxResults=${maxResults}`);
+  logger.debug(`Ripgrep search: pattern="${pattern}", rootPath="${rootPath}", maxResults=${maxResults}`);
 
   args.push('-e', pattern, rootPath);
 
@@ -2406,7 +2437,8 @@ async function searchCodeWithRipgrep(options: {
             // Ignore raw context events; we'll populate context_before/context_after later by rereading files
           }
         } catch (error) {
-          console.error(`Error parsing ripgrep output: ${error}`);
+          // Silent: prevent error output that breaks JSON parsing
+          logger.error(`Error parsing ripgrep output: ${error}`);
         }
         // Don't terminate early - let ripgrep finish processing all files
         // We'll limit results at the end
@@ -2414,14 +2446,14 @@ async function searchCodeWithRipgrep(options: {
     });
 
     rg.stderr.on('data', (data) => {
-      console.error(`ripgrep error: ${data}`);
+      logger.error(`ripgrep error: ${data}`);
     });
 
     rg.on('close', (code) => {
       if (settled) return;
       if (timeoutId) clearTimeout(timeoutId);
 
-      console.log(`Ripgrep process closed with code ${code}, found ${results.length} results`);
+      logger.debug(`Ripgrep process closed with code ${code}, found ${results.length} results`);
 
       if (remainder) {
         const leftover = remainder.trim().split('\n');
@@ -2442,7 +2474,8 @@ async function searchCodeWithRipgrep(options: {
               // Ignore raw context events; we'll populate context_before/context_after later by rereading files
             }
           } catch (error) {
-            console.error(`Error parsing ripgrep output: ${error}`);
+            // Silent: prevent error output that breaks JSON parsing
+            logger.error(`Error parsing ripgrep output: ${error}`);
           }
         }
       }
@@ -2475,7 +2508,7 @@ async function searchCode(options: {
   try {
     return await searchCodeWithRipgrep(options);
   } catch (error) {
-    console.warn('Ripgrep failed, falling back to native search:', error);
+    logger.warn('Ripgrep failed, falling back to native search:', error);
     // 여기서는 간단한 폴백만 구현 (기존 로직 사용)
     return [];
   }
@@ -2503,9 +2536,23 @@ function getMimeType(filePath: string): string {
 
 // 서버 시작
 async function main() {
+  // Initialize safe logging first to prevent any JSON parsing errors
+  initializeSafeLogging();
+  
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Fast Filesystem MCP Server v3.5.0 running on stdio (enhanced Windows support)');
+  
+  // Use logger's isDebugEnabled method to avoid duplication
+  const debugMode = logger.isDebugEnabled();
+  const silentMode = SILENT_ERRORS;
+  
+  // Use logger instead of console.error for server startup message
+  // This message should still go to stderr but in a controlled way
+  process.stderr.write(`Fast Filesystem MCP Server v3.5.1 running on stdio\n`);
+  process.stderr.write(`Options: Silent errors=${silentMode}, Debug=${debugMode}\n`);
+  
+  // Log to debug logger if enabled
+  logger.info('Server started successfully', { silentMode, debugMode });
 }
 
 // RegExp escape 함수
@@ -3252,9 +3299,7 @@ async function handleSearchCode(args: any) {
         } catch (error) {
           // Intentionally ignore file read errors; leave context arrays empty
           // This ensures graceful degradation when files can't be read
-          if (process.env.DEBUG) {
-            console.debug(`Failed to read context for ${filePath}:`, error);
-          }
+          logger.debug(`Failed to read context for ${filePath}:`, error);
         }
       }
 
@@ -3297,7 +3342,7 @@ async function handleSearchCode(args: any) {
 
   } catch (error) {
     // ripgrep 실패시 폴백 로직
-    console.warn('Ripgrep search failed, using fallback:', error);
+    logger.warn('Ripgrep search failed, using fallback:', error);
 
     // 기존 네이티브 검색으로 폴백
     return handleSearchCodeFallback(args);
@@ -3530,7 +3575,8 @@ async function handleSearchCodeFallback(args: any) {
       }
     } catch (error) {
       // 권한 없는 디렉토리 등은 조용히 무시
-      console.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Silent: suppress warnings to prevent JSON parsing errors
+      logger.warn(`Failed to search directory ${dirPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -3566,7 +3612,7 @@ async function handleSearchCodeFallback(args: any) {
 }
 
 main().catch((error) => {
-  console.error('Server failed to start:', error);
+  logger.error('Server failed to start:', error);
   process.exit(1);
 });
 
@@ -3661,7 +3707,7 @@ async function copyDirectoryRecursive(source: string, destination: string, overw
       try {
         await fs.access(destPath);
         if (!overwrite) {
-          console.warn(`Skipping existing file: ${destPath}`);
+          logger.warn(`Skipping existing file: ${destPath}`);
           continue;
         }
       } catch {
@@ -3782,7 +3828,7 @@ async function handleDeleteFile(args: any) {
     if (confirm_delete && !force) {
       const itemType = stats.isDirectory() ? 'directory' : 'file';
       const warningMessage = `WARNING: This will permanently delete the ${itemType}: ${resolvedPath}`;
-      console.warn(warningMessage);
+      logger.warn(warningMessage);
 
       // 실제 구현에서는 대화형 확인이 어려우므로 force 플래그 요구
       if (!force) {
@@ -4133,7 +4179,7 @@ async function createTarArchive(
     const { stdout, stderr } = await execAsync(tarCommand);
 
     if (stderr) {
-      console.warn('Tar warnings:', stderr);
+      logger.warn('Tar warnings:', stderr);
     }
 
   } finally {

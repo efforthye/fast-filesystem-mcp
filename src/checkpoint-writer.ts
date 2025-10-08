@@ -5,6 +5,7 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
+import { logger } from './logger/index.js';
 
 interface CheckpointData {
   targetFile: string;
@@ -66,7 +67,7 @@ export class SafeLargeFileWriter {
 
   // 로그 출력 (이모지 제거 적용)
   private log(message: string): void {
-    console.log(this.removeEmojis(message));
+    logger.info(this.removeEmojis(message));
   }
 
   // 섹션 추가
