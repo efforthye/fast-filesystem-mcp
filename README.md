@@ -257,11 +257,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ## Badge
-<a href="https://mseep.ai/app/efforthye-fast-filesystem-mcp">
-  <img height="150" src="https://mseep.net/pr/efforthye-fast-filesystem-mcp-badge.png" alt="MseeP.ai Badge" />
-</a><br/>
 <a href="https://glama.ai/mcp/servers/@efforthye/fast-filesystem-mcp">
   <img width="280" height="150" src="https://glama.ai/mcp/servers/@efforthye/fast-filesystem-mcp/badge" />
+</a><br/>
+<a href="https://mseep.ai/app/efforthye-fast-filesystem-mcp">
+  <img height="150" src="https://mseep.net/pr/efforthye-fast-filesystem-mcp-badge.png" alt="MseeP.ai Badge" />
 </a><br/>
 
 [![LobeHub MCP Badge](https://lobehub.com/badge/mcp/efforthye-fast-filesystem-mcp)](https://lobehub.com/mcp/efforthye-fast-filesystem-mcp)<br/>
