@@ -1,7 +1,6 @@
 <!-- # fast-filesystem-mcp -->
 <!-- <img width="1460" height="82" alt="image" src="https://github.com/user-attachments/assets/d77b4f8a-2d21-4645-9584-39ae9c7a2c26" /> -->
 <img width="860" height="92" alt="image" src="https://github.com/user-attachments/assets/f4a8dfea-e922-4306-b769-48337681f5ea" />
-
 Advanced filesystem operations for Claude Desktop with large file handling capabilities and Claude-optimized features.
 
 ## Quick Start
