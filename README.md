@@ -264,7 +264,6 @@ limitations under the License.
   <img height="150" src="https://mseep.net/pr/efforthye-fast-filesystem-mcp-badge.png" alt="MseeP.ai Badge" />
 </a><br/>
 
-[![LobeHub MCP Badge](https://lobehub.com/badge/mcp/efforthye-fast-filesystem-mcp)](https://lobehub.com/mcp/efforthye-fast-filesystem-mcp)<br/>
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/eb4a3f2f-f985-4efb-8dc2-3d319cf9b361)<br/>
 
 ## Repository
