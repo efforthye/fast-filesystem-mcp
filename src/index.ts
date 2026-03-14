@@ -25,6 +25,7 @@ import {
 import { promises as fs } from 'fs';
 import path from 'path';
 import { exec, spawn } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import {
   ResponseSizeMonitor,
@@ -51,6 +52,7 @@ import { logger, initializeSafeLogging } from './logger/index.js';
 // import { searchCode, SearchResult } from './search.js';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Claude 최적화 설정
 const CLAUDE_MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -2212,7 +2214,7 @@ async function handleGetDiskUsage(args: any) {
   const { path: targetPath = '/' } = args;
 
   try {
-    const { stdout } = await execAsync(`df -h "${targetPath}"`);
+    const { stdout } = await execFileAsync('df', ['-h', targetPath]);
     const lines = stdout.split('\n').filter(line => line.trim());
 
     if (lines.length > 1) {
@@ -4205,18 +4207,13 @@ async function createTarArchive(
     await fs.writeFile(tempListFile, fileListContent);
 
     // tar 명령어 구성
-    let tarCommand = `tar -cf "${outputPath}"`;
-
-    if (format === 'tar.gz') {
-      tarCommand = `tar -czf "${outputPath}"`;
-    } else if (format === 'tar.bz2') {
-      tarCommand = `tar -cjf "${outputPath}"`;
-    }
-
-    tarCommand += ` -T "${tempListFile}"`;
-
-    // tar 실행
-    const { stdout, stderr } = await execAsync(tarCommand);
+    const args = format === 'tar.gz' ? ['-czf', outputPath] :   
+              format === 'tar.bz2' ? ['-cjf', outputPath] :   
+              ['-cf', outputPath];  
+    args.push('-T', tempListFile);  
+  
+    // tar 실행  
+    const { stdout, stderr } = await execFileAsync('tar', args);
 
     if (stderr) {
       logger.warn('Tar warnings:', stderr);
@@ -4325,20 +4322,20 @@ async function extractTarArchive(
     }
 
     // 실제 압축 해제
-    let extractCommand = `tar -xf "${archivePath}" -C "${extractPath}"`;
-
-    if (specificFiles.length > 0) {
-      const tempListFile = `/tmp/extract_list_${Date.now()}.txt`;
-      await fs.writeFile(tempListFile, filesToExtract.join('\n'));
-      extractCommand += ` -T "${tempListFile}"`;
-
-      try {
-        await execAsync(extractCommand);
-      } finally {
-        await fs.unlink(tempListFile).catch(() => { });
-      }
-    } else {
-      await execAsync(extractCommand);
+    const args = ['-xf', archivePath, '-C', extractPath];  
+  
+    if (specificFiles.length > 0) {  
+      const tempListFile = `/tmp/extract_list_${Date.now()}.txt`;  
+      await fs.writeFile(tempListFile, filesToExtract.join('\n'));  
+      args.push('-T', tempListFile);  
+        
+      try {  
+        await execFileAsync('tar', args);  
+      } finally {  
+        await fs.unlink(tempListFile).catch(() => {});  
+      }  
+    } else {  
+      await execFileAsync('tar', args);  
     }
 
     return filesToExtract;
