@@ -47,6 +47,10 @@ The MCP server uses a safe logging system that prevents JSON-RPC communication e
 
 **Note**: Debug output is automatically suppressed by default to prevent JSON parsing errors in Claude Desktop.
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/efforthye-fast-filesystem-mcp).
+
 ## New Version Update
 To update to the latest version, follow these steps.
 1. **Uninstall previous version**
