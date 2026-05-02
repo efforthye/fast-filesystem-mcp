@@ -320,8 +320,11 @@ async function writeFileStreaming(
 
 async function checkDiskSpace(dirPath: string, requiredBytes: number): Promise<void> {
   try {
-    const { stdout } = await execAsync(`df -B1 "${dirPath}" | tail -1 | awk '{print $4}'`);
-    const availableBytes = parseInt(stdout.trim());
+    const { stdout: dfOutput } = await execFileAsync('df', ['-B1', dirPath]);
+    const dfLines = dfOutput.trim().split('\n');
+    const dfLastLine = dfLines[dfLines.length - 1];
+    const dfFields = dfLastLine.trim().split(/\s+/);
+    const availableBytes = parseInt(dfFields[3] || '0');
 
     if (availableBytes < requiredBytes * 1.5) {
       throw new Error(
@@ -2366,7 +2369,7 @@ async function searchCodeWithRipgrep(options: {
   } catch (rgError) {
     // 폴백으로 시스템 rg 사용 시도
     try {
-      await execAsync(process.platform === 'win32' ? 'where rg' : 'which rg');
+      await execFileAsync(process.platform === 'win32' ? 'where' : 'which', ['rg']);
       rgPath = 'rg';
     } catch (systemRgError) {
       throw new Error('ripgrep not available');
@@ -4199,7 +4202,7 @@ async function createTarArchive(
   compressionLevel: number
 ) {
   // 간단한 tar 명령어 사용 (실제 구현)
-  const tempListFile = `/tmp/tar_list_${Date.now()}.txt`;
+  const tempListFile = `/tmp/tar_list_${Date.now()}_${Math.random().toString(36).slice(2)}.txt`;
 
   try {
     // 파일 목록 작성
@@ -4296,10 +4299,8 @@ async function extractTarArchive(
   specificFiles: string[]
 ): Promise<string[]> {
   // tar 명령어로 압축 해제
-  let tarCommand = `tar -tf "${archivePath}"`; // 파일 목록 먼저 확인
-
   try {
-    const { stdout: fileList } = await execAsync(tarCommand);
+    const { stdout: fileList } = await execFileAsync('tar', ['-tf', archivePath]);
     const files = fileList.trim().split('\n').filter(f => f.trim());
 
     // 특정 파일만 추출하는 경우
@@ -4325,7 +4326,7 @@ async function extractTarArchive(
     const args = ['-xf', archivePath, '-C', extractPath];  
   
     if (specificFiles.length > 0) {  
-      const tempListFile = `/tmp/extract_list_${Date.now()}.txt`;  
+      const tempListFile = `/tmp/extract_list_${Date.now()}_${Math.random().toString(36).slice(2)}.txt`;
       await fs.writeFile(tempListFile, filesToExtract.join('\n'));  
       args.push('-T', tempListFile);  
         
